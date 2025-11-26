@@ -1,0 +1,25 @@
+experiment_name: cornell_resnet18_baseline
+
+data:
+  root_dir: data/cornell_raw/cornell_grasp   # mismo dataset que el simple_cnn
+  batch_size: 16                              # puedes bajar a 8 si notas que va lento
+  num_workers: 4
+  img_size: 224
+
+train:
+  num_epochs: 2            # para probar que todo funciona; luego lo subimos
+  lr: 0.0005               # un pelín más bajo para ResNet18
+  weight_decay: 0.0001
+  device: cpu              # en esta máquina seguimos con CPU
+
+model:
+  name: resnet18           # <- aquí está el cambio importante
+  pretrained: false        # true si en el futuro quieres tirar de pesos ImageNet
+
+metrics:
+  iou_thresh: 0.25
+  angle_thresh: 30.0
+
+logging:
+  output_dir: experiments
+  save_best_by: val_success

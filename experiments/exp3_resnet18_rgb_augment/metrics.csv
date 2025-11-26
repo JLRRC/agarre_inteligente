@@ -1,0 +1,11 @@
+epoch,train_loss,val_loss,val_iou,val_angle,val_success
+1,65.33885490288169,67.96533466058936,0.0,68.6001622878899,0.0
+2,62.45111450367728,65.96893043302546,0.0,78.81097517444589,0.0
+3,nan,nan,0.0,nan,0.0
+4,nan,nan,0.0,nan,0.0
+5,nan,nan,0.0,nan,0.0
+6,nan,nan,0.0,nan,0.0
+7,nan,nan,0.0,nan,0.0
+8,nan,nan,0.0,nan,0.0
+9,nan,nan,0.0,nan,0.0
+10,nan,nan,0.0,nan,0.0

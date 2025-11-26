@@ -1,0 +1,25 @@
+# Entorno virtual
+.venv/
+venv/
+
+# Dataset Cornell (NO subir a GitHub)
+data/
+*.zip
+
+# Pesos de modelos y checkpoints grandes
+*.pth
+*.pt
+experiments/**/checkpoints/
+experiments/**/runs/
+experiments/**/logs/
+
+# Cachés de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Otros
+.ipynb_checkpoints/
+*.log
+.DS_Store

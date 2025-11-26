@@ -1,0 +1,29 @@
+experiment_name: exp3_resnet18_rgb_augment
+
+data:
+  root_dir: data/cornell_raw/cornell_grasp
+  batch_size: 16
+  num_workers: 4
+  img_size: 224
+  use_depth: false
+  augmentation:
+    geometric: true
+    photometric: true
+
+train:
+  num_epochs: 10
+  lr: 1.0e-4       # un pelín más bajo para ResNet
+  weight_decay: 1.0e-4
+  device: cpu
+
+model:
+  name: resnet18
+
+metrics:
+  iou_thresh: 0.25
+  angle_thresh: 30.0
+
+logging:
+  output_dir: experiments
+  save_best_by: val_success
+
