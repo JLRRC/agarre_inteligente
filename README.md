@@ -243,7 +243,7 @@ las instrucciones anteriores.
 
 ⸻
 
-11. Trabajo futuro
+## 11. Trabajo futuro
 
 Para reproducir los resultados de este trabajo:
 	1.	Clonar el repositorio.
