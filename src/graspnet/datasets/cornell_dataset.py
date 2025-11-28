@@ -2,7 +2,7 @@ import os
 import glob
 import math
 import random
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import cv2
 import numpy as np
@@ -21,16 +21,18 @@ class CornellGraspDataset(Dataset):
 
     Args:
         root_dir: Carpeta raíz donde está Cornell (carpetas 01, 02, ... o pcdXXXX*).
+                  En tu estructura, puede ser data/cornell, data/cornell_processed o
+                  data/cornell_raw; el dataset intenta resolverlo automáticamente.
         split: "train", "val" o "all".
         val_split: Proporción de samples para validación (ej: 0.2 = 80/20).
         img_size: Tamaño final (img_size x img_size).
-        include_depth: Si False igualmente se carga depth, pero podrías ignorarlo.
+        include_depth: De momento no se usa para recortar nada; siempre se carga depth.
         random_grasp: Si True elige un grasp aleatorio del cpos; si False, el primero.
-        use_depth: Flag opcional para futuros modelos que quieran usar depth
-                   (de momento solo se guarda como atributo).
+        use_depth: Bandera para indicar si el modelo va a usar profundidad (pipeline RGB-D).
+        augment: Atajo rápido: si True -> augmentation={"geometric": True, "photometric": True}.
         augmentation: Diccionario opcional con flags de augmentation, por ejemplo:
                       {"geometric": True, "photometric": True}.
-                      De momento solo lo almacenamos para ser usado más adelante.
+                      Si se pasa, tiene prioridad sobre augment.
         transform_rgb: Transform opcional para RGB (TorchVision, etc.).
         transform_depth: Transform opcional para depth.
     """
@@ -44,12 +46,14 @@ class CornellGraspDataset(Dataset):
         include_depth: bool = True,
         random_grasp: bool = True,
         use_depth: bool = False,
-        augmentation: Dict[str, bool] | None = None,
+        augment: bool = False,
+        augmentation: Optional[Dict[str, bool]] = None,
         transform_rgb=None,
         transform_depth=None,
     ):
         assert split in ("train", "val", "all"), f"split inválido: {split}"
 
+        # Guardamos la ruta tal cual y luego la resolvemos
         self.root_dir = root_dir
         self.split = split
         self.val_split = val_split
@@ -57,49 +61,130 @@ class CornellGraspDataset(Dataset):
         self.include_depth = include_depth
         self.random_grasp = random_grasp
 
-        # Nuevos atributos para encajar con train_cornell.py
+        # Para el pipeline: saber si se piensa usar profundidad en el modelo
         self.use_depth = use_depth
-        self.augmentation = augmentation or {}  # p.ej. {"geometric": True, "photometric": True}
+
+        # Manejo de augmentation: primero `augmentation` explícito, si no, `augment`
+        if augmentation is not None:
+            self.augmentation = augmentation
+        else:
+            self.augmentation = {"geometric": True, "photometric": True} if augment else {}
 
         self.transform_rgb = transform_rgb
         self.transform_depth = transform_depth
 
+        # Resolver automáticamente la carpeta real (cornell / cornell_processed / cornell_raw)
+        self.root_dir = self._resolve_root_dir(self.root_dir)
+
+        # Construimos la lista de samples
         self.samples: List[Dict[str, str]] = self._collect_samples()
 
         if split != "all":
             self._apply_split()
 
     # --------------------------------------------------------------------- #
+    #   Resolución de root_dir
+    # --------------------------------------------------------------------- #
+    @staticmethod
+    def _resolve_root_dir(root_dir: str) -> str:
+        """
+        Intenta encontrar una carpeta válida a partir de root_dir.
+        Soporta estructuras como:
+          - data/cornell
+          - data/cornell_processed
+          - data/cornell_raw
+
+        Prioridad:
+          1) Lo que se pasa si existe tal cual.
+          2) cornell_raw
+          3) cornell_processed
+        """
+        # Si ya existe tal cual, perfecto
+        if os.path.isdir(root_dir):
+            return root_dir
+
+        base_name = os.path.basename(root_dir)
+        parent = os.path.dirname(root_dir)
+
+        candidates = []
+
+        # Caso típico: root_dir = "data/cornell"
+        if base_name == "cornell":
+            # Preferimos usar el dataset RAW original
+            candidates.append(os.path.join(parent, "cornell_raw"))
+            # Y en segundo lugar el processed
+            candidates.append(os.path.join(parent, "cornell_processed"))
+
+        # También probamos sufijos por si acaso
+        candidates.append(root_dir + "_raw")
+        candidates.append(root_dir + "_processed")
+
+        for c in candidates:
+            if c and os.path.isdir(c):
+                return c
+
+        # Si nada ha funcionado, error explícito
+        raise FileNotFoundError(
+            f"Directorio raíz no encontrado: {root_dir}. "
+            f"Probadas alternativas: {', '.join(candidates)}"
+        )
+
+    # --------------------------------------------------------------------- #
     #   Construcción de la lista de samples
     # --------------------------------------------------------------------- #
     def _collect_samples(self) -> List[Dict[str, str]]:
         """
-        Recorre root_dir buscando carpetas (01, 02, ...) y archivos pcdXXXXr.png.
-        Empareja RGB, depth y cpos.
+        Recorre root_dir de forma RECURSIVA buscando ficheros *cpos.txt
+        y, a partir de ahí, intenta encontrar la RGB y la depth correspondientes.
+
+        Es más robusto que asumir siempre pcdXXXXr.png + pcdXXXXd.tiff
+        y que todo esté solo a un nivel de profundidad.
         """
         samples: List[Dict[str, str]] = []
 
         if not os.path.isdir(self.root_dir):
             raise FileNotFoundError(f"Directorio raíz no encontrado: {self.root_dir}")
 
-        scene_dirs = [
-            d for d in sorted(glob.glob(os.path.join(self.root_dir, "*")))
-            if os.path.isdir(d)
-        ]
+        # Recorremos recursivamente todos los subdirectorios
+        for dirpath, dirnames, filenames in os.walk(self.root_dir):
+            # Filtramos todos los ficheros que terminen en "cpos.txt"
+            cpos_files = [f for f in filenames if f.endswith("cpos.txt")]
+            for cpos_name in cpos_files:
+                cpos_path = os.path.join(dirpath, cpos_name)
 
-        # Si no hay subdirectorios, asumimos que root_dir ya contiene los pcdXXXX*.
-        if not scene_dirs:
-            scene_dirs = [self.root_dir]
+                # Quitamos el sufijo "cpos.txt" para construir el "base"
+                base = cpos_path[:-8]  # quita 'cpos.txt'
 
-        for scene_dir in scene_dirs:
-            rgb_paths = sorted(glob.glob(os.path.join(scene_dir, "*r.png")))
-            for rgb_path in rgb_paths:
-                base = rgb_path[:-5]  # quita 'r.png'
-                depth_path = base + "d.tiff"
-                cpos_path = base + "cpos.txt"
+                # Candidatos para RGB
+                rgb_candidates = [
+                    base + "r.png",
+                    base + "r.jpg",
+                    base + "r.jpeg",
+                ]
 
-                if not (os.path.exists(depth_path) and os.path.exists(cpos_path)):
-                    # Saltamos si falta algo
+                # Candidatos para depth
+                depth_candidates = [
+                    base + "d.tiff",
+                    base + "d.tif",
+                    base + "d.png",
+                    base + "d.jpg",
+                ]
+
+                rgb_path = None
+                depth_path = None
+
+                for rp in rgb_candidates:
+                    if os.path.exists(rp):
+                        rgb_path = rp
+                        break
+
+                for dp in depth_candidates:
+                    if os.path.exists(dp):
+                        depth_path = dp
+                        break
+
+                # Si falta alguno de los dos, saltamos este sample
+                if rgb_path is None or depth_path is None:
                     continue
 
                 samples.append(
@@ -113,7 +198,8 @@ class CornellGraspDataset(Dataset):
         if not samples:
             raise RuntimeError(
                 f"No se han encontrado samples válidos en {self.root_dir}. "
-                f"¿Están las rutas bien (pcdXXXXr.png, pcdXXXXd.tiff, pcdXXXXcpos.txt)?"
+                f"¿Existen ficheros *cpos.txt y sus imágenes RGB/Depth asociadas "
+                f"(r.png/jpg y d.tif/tiff/png/jpg)?"
             )
 
         return samples
@@ -290,8 +376,8 @@ class CornellGraspDataset(Dataset):
 
         # Depth: [H, W] -> float32 [0,1] -> [1, H, W]
         depth = depth.astype(np.float32)
-        max_depth = depth.max()
-        if max_depth > 0:
+        max_depth = float(depth.max())
+        if max_depth > 0.0:
             depth = depth / max_depth
 
         depth = np.expand_dims(depth, axis=0)  # [1, H, W]

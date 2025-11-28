@@ -20,25 +20,26 @@ from graspnet.utils.metrics import (
     compute_grasp_success,
 )
 
-
 # -------------------------------------------------------------------------
 #  Argumentos y configuración
 # -------------------------------------------------------------------------
 
 
 def parse_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Entrenamiento en Cornell Grasping Dataset (RGB / RGB-D)"
+    )
     parser.add_argument(
         "--config",
         type=str,
         required=True,
-        help="Ruta al YAML de configuración (por ejemplo config/exp1_simple_rgb.yaml)",
+        help="Ruta al fichero de configuración YAML",
     )
     parser.add_argument(
         "--seed",
         type=int,
         default=0,
-        help="Semilla aleatoria para reproducibilidad",
+        help="Semilla aleatoria",
     )
     return parser.parse_args()
 
@@ -69,7 +70,7 @@ def seed_everything(seed: int):
 # -------------------------------------------------------------------------
 
 
-def make_dataloaders(cfg: dict):
+def make_dataloaders(cfg: dict, use_depth: bool):
     """
     Crea los DataLoaders de entrenamiento y validación a partir del YAML.
 
@@ -83,7 +84,7 @@ def make_dataloaders(cfg: dict):
     batch_size = int(data_cfg.get("batch_size", 16))
     num_workers = int(data_cfg.get("num_workers", 4))
     img_size = int(data_cfg.get("img_size", 224))
-    use_depth = bool(data_cfg.get("use_depth", False))
+    val_split = float(data_cfg.get("val_split", 0.2))
 
     aug_cfg = data_cfg.get("augmentation", {})
     train_aug = {
@@ -91,19 +92,21 @@ def make_dataloaders(cfg: dict):
         "photometric": bool(aug_cfg.get("photometric", False)),
     }
 
-    # Dataset de entrenamiento con augmentation (según config)
+    # Dataset de entrenamiento con augmentation
     train_dataset = CornellGraspDataset(
         root_dir=root_dir,
         split="train",
+        val_split=val_split,
         img_size=img_size,
         use_depth=use_depth,
         augmentation=train_aug,
     )
 
-    # Dataset de validación sin augmentation (habitual en visión)
+    # Dataset de validación sin augmentation
     val_dataset = CornellGraspDataset(
         root_dir=root_dir,
         split="val",
+        val_split=val_split,
         img_size=img_size,
         use_depth=use_depth,
         augmentation=None,
@@ -131,18 +134,26 @@ def make_dataloaders(cfg: dict):
 # -------------------------------------------------------------------------
 
 
-def make_model(cfg: dict, device: torch.device) -> nn.Module:
+def make_model(cfg: dict, device: torch.device, in_channels: int) -> nn.Module:
     """
     Construye el modelo a partir del YAML.
     Espera en cfg["model"]["name"] algo tipo:
         - "simple_cnn"
         - "resnet18"
-    que se resolverá vía graspnet.models.build_model(name).
+
+    Se pasa in_channels para soportar:
+      - 3 canales (RGB)
+      - 4 canales (RGB + Depth)
     """
     model_cfg = cfg["model"]
     model_name = model_cfg["name"]
-    # Por ahora usamos los valores por defecto: RGB (3 canales), img_size=224, pretrained=False
-    model = build_model(model_name)
+    pretrained = bool(model_cfg.get("pretrained", False))
+
+    model = build_model(
+        model_name,
+        in_channels=in_channels,
+        pretrained=pretrained,
+    )
     model.to(device)
     return model
 
@@ -218,8 +229,7 @@ def save_checkpoint(
 
 # -------------------------------------------------------------------------
 #  Bucle de entrenamiento + validación
-# -------------------------------------------------------------------------
-
+# ------------------------------------------------------------------------
 
 def train_one_epoch(
     model: nn.Module,
@@ -227,6 +237,7 @@ def train_one_epoch(
     criterion: nn.Module,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
+    use_depth: bool,
 ) -> float:
     """
     Entrena una época sobre el dataloader y devuelve la pérdida media.
@@ -235,30 +246,50 @@ def train_one_epoch(
       - "rgb": tensor [B, 3, H, W]
       - "depth": tensor [B, 1, H, W]
       - "grasp": tensor [B, 5]
+
+    Si use_depth=False:
+      - Se usa solo rgb -> [B, 3, H, W]
+    Si use_depth=True:
+      - Se concatena rgb y depth -> [B, 4, H, W]
     """
     model.train()
     running_loss = 0.0
     total_samples = 0
 
-    for batch in dataloader:
-        # Extraemos los tensores del diccionario y los pasamos a device
-        rgb = batch["rgb"].to(device)
-        depth = batch["depth"].to(device) if batch["depth"] is not None else None
-        grasp = batch["grasp"].to(device)
+    for batch_idx, batch in enumerate(dataloader):
+        rgb = batch["rgb"].to(device)      # [B, 3, H, W]
+        depth = batch["depth"].to(device)  # [B, 1, H, W]
+        grasp = batch["grasp"].to(device)  # [B, 5]
+
+        if use_depth:
+            x = torch.cat([rgb, depth], dim=1)  # [B, 4, H, W]
+        else:
+            x = rgb  # [B, 3, H, W]
+
+        # Chequeos de sanity antes del forward
+        if torch.isnan(x).any() or torch.isinf(x).any():
+            print(f"[WARN] NaN/Inf en entrada (batch {batch_idx}), se salta el batch.")
+            continue
+        if torch.isnan(grasp).any() or torch.isinf(grasp).any():
+            print(f"[WARN] NaN/Inf en etiquetas grasp (batch {batch_idx}), se salta el batch.")
+            continue
 
         optimizer.zero_grad()
+        outputs = model(x)
 
-        # forward
-        try:
-            # Si el modelo acepta (rgb, depth)
-            outputs = model(rgb, depth)
-        except TypeError:
-            # Si el modelo solo acepta rgb
-            outputs = model(rgb)
+        # Chequeo de outputs
+        if torch.isnan(outputs).any() or torch.isinf(outputs).any():
+            print(f"[WARN] NaN/Inf en outputs del modelo (batch {batch_idx}), se salta el batch.")
+            continue
 
         loss = criterion(outputs, grasp)
+
+        # Chequeo de la loss
+        if torch.isnan(loss) or torch.isinf(loss):
+            print(f"[WARN] NaN/Inf en loss (batch {batch_idx}), se salta el batch.")
+            continue
+
         loss.backward()
-        # 🔒 Frenar gradientes demasiado grandes
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
@@ -266,9 +297,13 @@ def train_one_epoch(
         running_loss += loss.item() * batch_size
         total_samples += batch_size
 
-    mean_loss = running_loss / max(total_samples, 1)
-    return mean_loss
+    if total_samples == 0:
+        # Si TODOS los batches han sido inválidos, devolvemos 0.0 para no propagar NaNs
+        print("[WARN] Ningún batch válido en train_one_epoch (total_samples=0). Devuelvo train_loss=0.0")
+        return 0.0
 
+    mean_loss = running_loss / total_samples
+    return mean_loss
 
 def validate(
     model: nn.Module,
@@ -276,6 +311,7 @@ def validate(
     criterion: nn.Module,
     device: torch.device,
     cfg: dict,
+    use_depth: bool,
 ):
     """
     Evalúa el modelo en validación y devuelve:
@@ -283,11 +319,6 @@ def validate(
       - val_iou medio
       - val_angle medio (diferencia angular en grados)
       - val_success (proporción de aciertos según Cornell)
-
-    El dataloader devuelve batches como diccionarios con keys:
-      - "rgb": tensor [B, 3, H, W]
-      - "depth": tensor [B, 1, H, W]
-      - "grasp": tensor [B, 5]
     """
     model.eval()
     iou_thresh = float(cfg["metrics"]["iou_thresh"])
@@ -302,17 +333,34 @@ def validate(
     success_count = 0
 
     with torch.no_grad():
-        for batch in dataloader:
+        for batch_idx, batch in enumerate(dataloader):
             rgb = batch["rgb"].to(device)
-            depth = batch["depth"].to(device) if batch["depth"] is not None else None
+            depth = batch["depth"].to(device)
             grasp = batch["grasp"].to(device)
 
-            try:
-                outputs = model(rgb, depth)
-            except TypeError:
-                outputs = model(rgb)
+            if use_depth:
+                x = torch.cat([rgb, depth], dim=1)  # [B, 4, H, W]
+            else:
+                x = rgb  # [B, 3, H, W]
+
+            # Chequeos de sanity
+            if torch.isnan(x).any() or torch.isinf(x).any():
+                print(f"[WARN] NaN/Inf en entrada (VAL, batch {batch_idx}), se salta el batch.")
+                continue
+            if torch.isnan(grasp).any() or torch.isinf(grasp).any():
+                print(f"[WARN] NaN/Inf en etiquetas grasp (VAL, batch {batch_idx}), se salta el batch.")
+                continue
+
+            outputs = model(x)
+
+            if torch.isnan(outputs).any() or torch.isinf(outputs).any():
+                print(f"[WARN] NaN/Inf en outputs (VAL, batch {batch_idx}), se salta el batch.")
+                continue
 
             loss = criterion(outputs, grasp)
+            if torch.isnan(loss) or torch.isinf(loss):
+                print(f"[WARN] NaN/Inf en loss (VAL, batch {batch_idx}), se salta el batch.")
+                continue
 
             batch_size = grasp.size(0)
             total_loss += loss.item() * batch_size
@@ -323,11 +371,9 @@ def validate(
             grasp_np = grasp.cpu().numpy()
 
             for p, g in zip(preds_np, grasp_np):
-                # p y g se asumen como [cx, cy, w, h, angle_deg]
                 cx_p, cy_p, w_p, h_p, ang_p = p
                 cx_g, cy_g, w_g, h_g, ang_g = g
 
-                # Para las medias de IoU y ángulo usamos nuestras funciones
                 rect_p = params_to_rect(cx_p, cy_p, w_p, h_p, ang_p)
                 rect_g = params_to_rect(cx_g, cy_g, w_g, h_g, ang_g)
 
@@ -337,9 +383,11 @@ def validate(
                 iou = bbox_iou(bbox_p, bbox_g)
                 angle_diff = angle_diff_deg(ang_p, ang_g)
 
-                # OJO: compute_grasp_success espera los vectores de 5 params,
-                # no el IoU y el ángulo ya calculados.
                 success = compute_grasp_success(p, g, iou_thresh, angle_thresh)
+
+                # iou o angle_diff no deberían ser NaN, pero por si acaso:
+                if np.isnan(iou) or np.isnan(angle_diff):
+                    continue
 
                 sum_iou += iou
                 sum_angle += angle_diff
@@ -347,7 +395,11 @@ def validate(
                 if success:
                     success_count += 1
 
-    mean_loss = total_loss / max(total_samples, 1)
+    if total_samples == 0:
+        print("[WARN] Ningún batch válido en validate() (total_samples=0). Devuelvo métricas neutras.")
+        return 0.0, 0.0, 0.0, 0.0
+
+    mean_loss = total_loss / total_samples
     mean_iou = sum_iou / max(n_eval, 1)
     mean_angle = sum_angle / max(n_eval, 1)
     val_success = success_count / max(n_eval, 1)
@@ -369,16 +421,24 @@ def main():
 
     # 3) Config
     cfg = load_config(args.config)
+
+    # ⚠️ En el MeLE NO hay GPU NVIDIA: forzamos SIEMPRE CPU
+    device = torch.device("cpu")
+    print("Usando dispositivo:", device)
+
+    # 4) Config de datos: decidir si usamos profundidad
+    data_cfg = cfg["data"]
+    use_depth = bool(data_cfg.get("use_depth", False))
+    in_channels = 4 if use_depth else 3
+
+    # 5) DataLoaders
+    train_loader, val_loader = make_dataloaders(cfg, use_depth=use_depth)
+
+    # 6) Modelo
+    model = make_model(cfg, device, in_channels=in_channels)
+
+    # 7) Loss y optimizador
     train_cfg = cfg["train"]
-    device = torch.device(train_cfg.get("device", "cpu"))
-
-    # 4) DataLoaders
-    train_loader, val_loader = make_dataloaders(cfg)
-
-    # 5) Modelo
-    model = make_model(cfg, device)
-
-    # 6) Loss y optimizador
     criterion = nn.SmoothL1Loss()
     optimizer = torch.optim.Adam(
         model.parameters(),
@@ -386,14 +446,14 @@ def main():
         weight_decay=float(train_cfg["weight_decay"]),
     )
 
-    # 7) Directorios y metrics.csv
+    # 8) Directorios y metrics.csv
     base_dir, ckpt_dir, metrics_path = ensure_dirs(cfg)
 
     # Guardar copia de la config usada (para reproducibilidad del experimento)
     config_path = Path(args.config)
     shutil.copy2(config_path, base_dir / "config_used.yaml")
 
-    # 8) Bucle de entrenamiento
+    # 9) Bucle de entrenamiento
     num_epochs = int(train_cfg["num_epochs"])
     log_cfg = cfg["logging"]
     metric_name = log_cfg.get("save_best_by", "val_success")
@@ -401,10 +461,10 @@ def main():
 
     for epoch in range(1, num_epochs + 1):
         train_loss = train_one_epoch(
-            model, train_loader, criterion, optimizer, device
+            model, train_loader, criterion, optimizer, device, use_depth=use_depth
         )
         val_loss, val_iou, val_angle, val_success = validate(
-            model, val_loader, criterion, device, cfg
+            model, val_loader, criterion, device, cfg, use_depth=use_depth
         )
 
         metrics_dict = {

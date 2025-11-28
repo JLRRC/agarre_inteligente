@@ -7,8 +7,8 @@ El repositorio contiene:
 
 - Código en **PyTorch** para:
   - Carga y preprocesado del dataset Cornell.
-  - Modelos de detección de agarres basados en **CNN simple** y **ResNet-18**.
-  - Entrenamiento, validación y cálculo de métricas tipo Cornell (IoU, error angular, grasp success).
+  - Modelos de detección de agarres basados en **CNN simple** y **ResNet-18**, tanto en **RGB** como en **RGB-D** (fusionando profundidad).
+  - Entrenamiento, validación y cálculo de métricas tipo Cornell (IoU, error angular, *grasp success*).
 - Ficheros de configuración **YAML** para lanzar experimentos controlados.
 - Resultados experimentales (métricas en CSV) y comparativas **A/B** entre modelos.
 
@@ -20,45 +20,46 @@ El repositorio contiene:
 
 ## 1. Estructura del repositorio
 
+```text
 agarre_inteligente/
-├── .venv/                      # Entorno virtual local (NO se versiona)
-├── config/                     # Configuraciones YAML de modelos y experimentos
-│   ├── cornell_simple.yaml             # Config base SimpleGraspCNN
-│   ├── cornell_resnet18.yaml           # Config base ResNet18Grasp
-│   ├── exp1_simple_rgb.yaml            # EXP1: SimpleGraspCNN RGB sin augment
-│   ├── exp2_simple_rgb_augment.yaml    # EXP2: SimpleGraspCNN RGB + augment
-│   └── exp3_resnet18_rgb_augment.yaml  # EXP3: ResNet18Grasp RGB + augment
-├── data/                       # Datasets locales (IGNORADOS por git)
-│   ├── cornell_raw/            # Cornell original (ficheros .png/.tiff/.txt)
-│   └── cornell_processed/      # Versión re-escalada/preprocesada
-├── experiments/                # Resultados experimentales
-│   ├── cornell_simple_baseline/        # Métricas baseline SimpleGraspCNN
-│   ├── cornell_resnet18_baseline/      # Métricas baseline ResNet18Grasp
-│   ├── exp1_simple_rgb/                # EXP1: metrics.csv + config_used.yaml
-│   ├── exp2_simple_rgb_augment/        # EXP2
-│   ├── exp3_resnet18_rgb_augment/      # EXP3
-│   ├── ab_exp1_vs_exp2_val_success.csv # Comparativa A/B (EXP1 vs EXP2)
-│   ├── ab_exp2_vs_exp3_val_success.csv # Comparativa A/B (EXP2 vs EXP3)
-│   ├── plan_experimentos_base.md       # Plan de experimentos base
-│   └── summary_base.csv                # Resumen tabular de resultados
+├── .venv/                          # Entorno virtual local (NO se versiona)
+├── config/                         # Configuraciones YAML de modelos y experimentos
+│   ├── cornell_simple.yaml                 # Config base SimpleGraspCNN (RGB)
+│   ├── cornell_resnet18.yaml               # Config base ResNet18Grasp (RGB)
+│   ├── exp1_simple_rgb.yaml                # EXP1: SimpleGraspCNN RGB sin augment
+│   ├── exp2_simple_rgb_augment.yaml        # EXP2: SimpleGraspCNN RGB + augment
+│   └── exp3_resnet18_rgbd.yaml             # EXP3: ResNet18Grasp RGB-D (RGB + Depth)
+├── data/                           # Datasets locales (IGNORADOS por git)
+│   ├── cornell_raw/                # Cornell original (ficheros .png/.tiff/.txt)
+│   └── cornell_processed/          # Versión re-escalada/preprocesada
+├── experiments/                    # Resultados experimentales
+│   ├── cornell_simple_baseline/            # Métricas baseline SimpleGraspCNN
+│   ├── cornell_resnet18_baseline/          # Métricas baseline ResNet18Grasp
+│   ├── exp1_simple_rgb/                    # EXP1: metrics.csv + config_used.yaml
+│   ├── exp2_simple_rgb_augment/            # EXP2
+│   ├── EXP3_RESNET18_RGBD_seed0/           # EXP3: ResNet18Grasp RGB-D (RGB + Depth)
+│   ├── ab_exp1_vs_exp2_val_success.csv     # Comparativa A/B (EXP1 vs EXP2)
+│   ├── ab_exp2_vs_exp3_val_success.csv     # Comparativa A/B (EXP2 vs EXP3)
+│   ├── plan_experimentos_base.md           # Plan de experimentos base
+│   └── summary_base.csv                    # Resumen tabular de resultados
 ├── src/
 │   ├── graspnet/
 │   │   ├── datasets/
-│   │   │   └── cornell_dataset.py      # Dataloader y preprocesado Cornell
+│   │   │   └── cornell_dataset.py          # Dataloader y preprocesado Cornell (RGB / RGB-D)
 │   │   ├── models/
-│   │   │   ├── simple_cnn.py           # Modelo SimpleGraspCNN
-│   │   │   └── resnet18_grasp.py       # Modelo ResNet18Grasp
+│   │   │   ├── simple_cnn.py               # Modelo SimpleGraspCNN
+│   │   │   └── resnet18_grasp.py           # Modelo ResNet18Grasp (RGB / RGB-D)
 │   │   ├── train/
-│   │   │   ├── train_cornell.py        # Script principal de entrenamiento
-│   │   │   ├── debug_dataloader.py     # Script de depuración del dataloader
-│   │   │   ├── build_summary_base.py   # Construcción de summary_base.csv
-│   │   │   └── compare_ab.py           # Comparativas A/B entre experimentos
+│   │   │   ├── train_cornell.py            # Script principal de entrenamiento
+│   │   │   ├── debug_dataloader.py         # Script de depuración del dataloader
+│   │   │   ├── build_summary_base.py       # Construcción de summary_base.csv
+│   │   │   └── compare_ab.py               # Comparativas A/B entre experimentos
 │   │   └── utils/
-│   │       ├── metrics.py              # IoU, ángulo, grasp success, etc.
-│   │       └── debug_metrics.py        # Utilidades de depuración de métricas
+│   │       ├── metrics.py                  # IoU, ángulo, grasp success, etc.
+│   │       └── debug_metrics.py            # Utilidades de depuración de métricas
 │   └── __init__.py
-├── requirements.txt            # Dependencias Python del proyecto
-└── README.md                   # Este documento
+├── requirements.txt                # Dependencias Python del proyecto
+└── README.md                       # Este documento
 
 ⸻
 
@@ -129,11 +130,15 @@ tamaño de entrada de los modelos (por ejemplo 224×224).
 Configuración base: config/cornell_simple.yaml.
 
 5.2. ResNet18Grasp
-•	Basado en torchvision.models.resnet18 con pesos preentrenados.
-•	Se sustituye la capa fc final para producir 5 parámetros (cx, cy, w, h, angle).
-•	Pensado como modelo de mayor capacidad para comparar con la CNN ligera.
+	•	Basado en torchvision.models.resnet18 con pesos preentrenados.
+	•	Se adapta la primera capa convolucional para admitir tanto entradas:
+	•	RGB (3 canales), como
+	•	RGB-D (4 canales, RGB + mapa de profundidad), según la configuración del experimento (in_channels).
+	•	Se sustituye la capa fc final para producir 5 parámetros (cx, cy, w, h, angle).
+	•	Pensado como modelo de mayor capacidad para comparar con la CNN ligera.
 
-Configuración base: config/cornell_resnet18.yaml.
+Configuración base (RGB): config/cornell_resnet18.yaml.
+Configuración experimental RGB-D: config/exp3_resnet18_rgbd.yaml.
 
 ⸻
 
@@ -192,6 +197,9 @@ python src/graspnet/train/train_cornell.py \
 python src/graspnet/train/train_cornell.py \
     --config config/exp3_resnet18_rgb_augment.yaml \
     --seed 0
+En este experimento se activa el uso de profundidad (use_depth: true en el YAML),
+fusionando el mapa de profundidad como un cuarto canal de entrada (RGB-D) y
+adaptando ResNet-18 para trabajar con 4 canales.
 
 Cada ejecución genera:
 	•	Una carpeta en experiments/<nombre_experimento>/ con:
@@ -225,7 +233,7 @@ Para reproducir los resultados de este trabajo:
 	1.	Clonar el repositorio.
 	2.	Preparar el entorno virtual e instalar dependencias.
 	3.	Descargar Cornell y colocarlo en data/cornell_raw/.
-	4.	Ejecutar los tres experimentos base (EXP1, EXP2, EXP3).
+	4.	Ejecutar los tres experimentos base (EXP1 y EXP2 en RGB, EXP3 en RGB-D).
 	5.	Ejecutar build_summary_base.py y compare_ab.py para generar los CSV
 de resumen y comparativas.
 
@@ -237,14 +245,17 @@ las instrucciones anteriores.
 
 11. Trabajo futuro
 
-La estructura del proyecto está pensada para facilitar extensiones en trabajos
-posteriores, tales como:
-	•	Integración de segmentación de la escena y detección de múltiples agarres.
-	•	Evaluación en otros datasets de agarre (Jacquard, NBMOD, GraspNet, etc.).
-	•	Implementación de modelos basados en Transformers y arquitecturas más
-recientes de visión.
-	•	Integración en un pipeline robótico completo mediante ROS 2 y simulación
-en Gazebo, utilizando el modelo entrenado como módulo de percepción.
+Para reproducir los resultados de este trabajo:
+	1.	Clonar el repositorio.
+	2.	Preparar el entorno virtual e instalar dependencias.
+	3.	Descargar Cornell y colocarlo en data/cornell_raw/.
+	4.	Ejecutar los tres experimentos base (EXP1 y EXP2 en RGB, EXP3 en RGB-D).
+	5.	Ejecutar build_summary_base.py y compare_ab.py para generar los CSV
+de resumen y comparativas.
+
+Dado que el código, las configuraciones YAML y las métricas generadas se
+versionan en este repositorio, un tercero puede replicar el proceso siguiendo
+las instrucciones anteriores.
 
 ⸻
 

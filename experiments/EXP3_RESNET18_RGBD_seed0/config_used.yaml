@@ -1,0 +1,30 @@
+experiment_name: EXP3_RESNET18_RGBD_seed0
+
+data:
+  root_dir: data/cornell          # ajusta si tu ruta es distinta
+  img_size: 224
+  batch_size: 16
+  num_workers: 4
+  val_split: 0.2
+  use_depth: true                 # 🔹 activamos RGB-D
+  augmentation:
+    geometric: true
+    photometric: true
+
+model:
+  name: resnet18                  # usa build_model("resnet18")
+  pretrained: true                # carga pesos ImageNet
+
+train:
+  num_epochs: 10
+  lr: 1.0e-4
+  weight_decay: 1.0e-5
+  # el device lo forzamos a "cpu" en el código, aquí ya no hace falta nada
+
+metrics:
+  iou_thresh: 0.25
+  angle_thresh: 30.0
+
+logging:
+  output_dir: experiments
+  save_best_by: val_success
