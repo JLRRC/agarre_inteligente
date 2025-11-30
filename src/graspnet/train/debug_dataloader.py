@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 
-from graspnet.data.cornell_dataset import CornellGraspDataset
+from graspnet.datasets.cornell_dataset import CornellGraspDataset
 
 
 def main():

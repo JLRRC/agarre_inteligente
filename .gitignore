@@ -1,25 +1,31 @@
-# Entorno virtual
+# Entorno virtual local
 .venv/
+env/
 venv/
 
-# Dataset Cornell (NO subir a GitHub)
-data/
-*.zip
-
-# Pesos de modelos y checkpoints grandes
-*.pth
-*.pt
-experiments/**/checkpoints/
-experiments/**/runs/
-experiments/**/logs/
-
-# Cachés de Python
+# Ficheros de Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Otros
-.ipynb_checkpoints/
-*.log
+# Datos grandes
+data/
+# Si quieres dejar data/ con un README, haz:
+# !data/README.md
+
+# Experimentos: ignora cosas pesadas
+experiments/*/*.log
+experiments/*/*.pth
+experiments/*/checkpoints/
+# Si quieres ignorar TODO y solo subir un resumen, puedes usar:
+# experiments/
+
+# Ficheros temporales y herramientas internas
+tmp/
+_dump_txt_files.txt
+
+# Cosas típicas
 .DS_Store
+*.swp
+*.swo
