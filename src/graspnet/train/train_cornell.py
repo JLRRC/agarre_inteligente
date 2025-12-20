@@ -423,7 +423,11 @@ def main():
     cfg = load_config(args.config)
 
     # ⚠️ En el MeLE NO hay GPU NVIDIA: forzamos SIEMPRE CPU
-    device = torch.device("cpu")
+    #device = torch.device("GPU")
+    #print("Usando dispositivo:", device)
+
+    # Dispositivo: CUDA si está disponible (en el PC RTX), si no CPU
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Usando dispositivo:", device)
 
     # 4) Config de datos: decidir si usamos profundidad
