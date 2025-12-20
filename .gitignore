@@ -27,8 +27,9 @@ experiments/**/*.pt
 experiments/**/*.ckpt
 experiments/**/*.log
 
-# Plots y outputs generados (opcionales: yo NO los subiría)
-experiments/plots/
+# --- Permitir plots de resultados (para memoria del trabajo) ---
+!experiments/plots/
+!experiments/plots/*.png
 
 # Resúmenes (estos SÍ conviene subir, son ligeros)
 !experiments/summary_base.csv
