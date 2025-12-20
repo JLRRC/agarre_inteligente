@@ -1,9 +1,5 @@
-exp_id,model,modality,seed,best_epoch,val_loss,val_iou,val_angle,val_success
-EXP1_SIMPLE_RGB,,,,7,18.770076,0.260778,71.662622,0.177024
-EXP2_SIMPLE_RGBD,,,,9,19.186421,0.238213,72.836860,0.163107
-EXP3_RESNET18_RGBD,,,,10,23.849319,0.020474,65.628649,0.003766
-cornell_resnet18_baseline,,,,1,60.822787,0.000000,67.554181,0.000000
-cornell_simple_baseline,,,,2,25.688432,0.100251,80.396900,0.016949
-exp1_simple_rgb,,,,2,24.502391,0.122478,75.032813,0.056497
-exp2_simple_rgb_augment,,,,3,23.331992,0.152904,77.033892,0.062147
-exp3_resnet18_rgb_augment,,,,1,67.965335,0.000000,68.600162,0.000000
+exp_id,model,modality,augment,seed,best_epoch,val_success,val_iou,val_angle,val_loss,ckpt_best,ckpt_last
+EXP1_SIMPLE_RGB,simple_cnn,RGB,,,7,0.177024,0.260778,71.66,18.770076,experiments/EXP1_SIMPLE_RGB/checkpoints/best.pth,experiments/EXP1_SIMPLE_RGB/checkpoints/last.pth
+EXP2_SIMPLE_RGBD,simple_cnn,RGBD,,,10,0.227872,0.324449,71.19,18.722225,experiments/EXP2_SIMPLE_RGBD/checkpoints/best.pth,experiments/EXP2_SIMPLE_RGBD/checkpoints/last.pth
+EXP3_RESNET18_RGBD,resnet18,RGBD,,,10,0.258004,0.278729,66.84,17.983090,experiments/EXP3_RESNET18_RGBD/checkpoints/best.pth,experiments/EXP3_RESNET18_RGBD/checkpoints/last.pth
+EXP3_RESNET18_RGB_AUGMENT,resnet18,RGB,geo=1|photo=1,,9,0.303202,0.309791,56.96,15.874630,experiments/EXP3_RESNET18_RGB_AUGMENT/checkpoints/best.pth,experiments/EXP3_RESNET18_RGB_AUGMENT/checkpoints/last.pth

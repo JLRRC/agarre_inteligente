@@ -9,19 +9,43 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Datos grandes
+# Datos grandes (NO subir Cornell)
 data/
-# Si quieres dejar data/ con un README, haz:
+# Si quieres dejar data/ con un README:
 # !data/README.md
 
-# Experimentos: ignora cosas pesadas
-experiments/*/*.log
-experiments/*/*.pth
-experiments/*/checkpoints/
-# Si quieres ignorar TODO y solo subir un resumen, puedes usar:
-# experiments/
+# Experimentos viejos / copias locales
+experiments/_old/
 
-# Ficheros temporales y herramientas internas
+# Backups editor/script
+*.bak_*
+
+# Experimentos: ignora cosas pesadas (pesos y checkpoints)
+experiments/*/checkpoints/
+experiments/**/*.pth
+experiments/**/*.pt
+experiments/**/*.ckpt
+experiments/**/*.log
+
+# Plots y outputs generados (opcionales: yo NO los subiría)
+experiments/plots/
+
+# Resúmenes (estos SÍ conviene subir, son ligeros)
+!experiments/summary_base.csv
+!experiments/summary_base_pretty.md
+
+# Reports: por defecto NO subir dumps pesados
+reports/**/*.csv
+reports/**/*.json
+
+# Pero SÍ subir los index_files PRO (reproducibilidad)
+!reports/cornell_audit/clean_idx_train.txt
+!reports/cornell_audit/clean_idx_train_v2.txt
+!reports/cornell_audit/clean_idx_val.txt
+!reports/cornell_audit/scan_bad_train.txt
+!reports/cornell_audit/scan_bad_train_aug.txt
+
+# Temporales
 tmp/
 _dump_txt_files.txt
 

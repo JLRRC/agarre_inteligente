@@ -1,345 +1,316 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 select_best_epoch.py
 
-Script para:
-  - Leer los ficheros metrics.csv de cada experimento en experiments/
-  - Seleccionar la mejor época según las métricas de validación
-  - Generar un resumen en CSV con una fila por experimento
+- Lee metrics.csv de cada experimento en experiments/
+- Selecciona la mejor época según val_success (si existe), si no por val_iou
+- Genera un summary CSV con 1 fila por experimento
 
-Uso típico:
-
-  # Resumen de TODOS los experimentos en la carpeta experiments/
+Uso:
   python src/graspnet/metrics/select_best_epoch.py --root experiments
-
-  # Resumen de un solo experimento
-  python src/graspnet/metrics/select_best_epoch.py \
-      --exp experiments/EXP3_RESNET18_RGBD_seed0
-
-Requisitos:
-  - Cada experimento tiene una carpeta tipo experiments/EXP... con:
-      - metrics.csv  (con columnas epoch, val_loss, val_iou,
-                      val_angle y, si existe, val_success)
-      - config.yaml  (copiado por el script de entrenamiento)
+  python src/graspnet/metrics/select_best_epoch.py --exp experiments/EXP1_SIMPLE_RGB
+  python src/graspnet/metrics/select_best_epoch.py --root experiments --output experiments/summary_base.csv
 """
 
 import argparse
 import csv
 import math
-import os
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 try:
     import yaml  # type: ignore
-except ImportError:
+except Exception:
     yaml = None
 
 
-def load_config(config_path: str) -> Dict:
-    """
-    Carga el YAML de configuración si existe.
-    Devuelve {} si no se puede leer o no está PyYAML.
-    """
-    if not os.path.exists(config_path):
-        return {}
-    if yaml is None:
-        # PyYAML no está instalado, devolvemos vacío
-        return {}
-
-    with open(config_path, "r") as f:
-        try:
-            cfg = yaml.safe_load(f)
-        except Exception:
-            cfg = {}
-    return cfg or {}
-
-
-def infer_seed_from_name(exp_name: str) -> Optional[int]:
-    """
-    Intenta extraer la seed del nombre del experimento.
-    Ejemplos:
-      EXP1_SIMPLE_RGB_seed0 -> 0
-      EXP3_RESNET18_RGBD_seed42 -> 42
-    """
-    parts = exp_name.split("_")
-    for p in parts:
-        if p.startswith("seed"):
-            try:
-                return int(p.replace("seed", ""))
-            except ValueError:
-                pass
-    return None
-
-
+# -----------------------------
+# Utils
+# -----------------------------
 def is_finite(x: Optional[float]) -> bool:
-    """
-    True si x es un número real finito.
-    """
-    if x is None:
-        return False
-    return math.isfinite(x)
+    return (x is not None) and math.isfinite(x)
 
 
 def parse_float(row: Dict[str, str], key: str) -> Optional[float]:
-    """
-    Intenta leer un float de row[key]. Si falla, devuelve None.
-    """
     if key not in row:
         return None
     try:
         return float(row[key])
-    except (ValueError, TypeError):
+    except Exception:
         return None
 
 
-def load_metrics_csv(metrics_path: str) -> List[Dict]:
-    """
-    Carga metrics.csv como una lista de dicts.
-    Cada dict representa una fila (época).
-    """
-    rows: List[Dict] = []
-    if not os.path.exists(metrics_path):
-        return rows
-
-    with open(metrics_path, "r", newline="") as f:
+def load_metrics_csv(metrics_path: Path) -> List[Dict[str, str]]:
+    if not metrics_path.exists():
+        return []
+    rows: List[Dict[str, str]] = []
+    with metrics_path.open("r", newline="") as f:
         reader = csv.DictReader(f)
-        for row in reader:
-            rows.append(row)
+        for r in reader:
+            rows.append(r)
     return rows
 
 
-def select_best_row(
-    rows: List[Dict]
-) -> Optional[Dict]:
+def load_config_from_exp(exp_dir: Path) -> Dict:
     """
-    Selecciona la mejor época dada una lista de filas de metrics.csv.
+    Tu entrenamiento copia la config a: experiments/<EXP>/config_used.yaml
+    Pero soportamos también nombres antiguos.
+    """
+    if yaml is None:
+        return {}
 
+    candidates = [
+        exp_dir / "config_used.yaml",
+        exp_dir / "config_used.yml",
+        exp_dir / "config.yaml",
+        exp_dir / "config.yml",
+    ]
+    for p in candidates:
+        if p.exists():
+            try:
+                with p.open("r") as f:
+                    cfg = yaml.safe_load(f)
+                return cfg or {}
+            except Exception:
+                return {}
+    return {}
+
+
+def infer_seed(exp_name: str, cfg: Dict) -> str:
+    # 1) intenta "seedXX" en el nombre
+    parts = exp_name.split("_")
+    for p in parts:
+        if p.startswith("seed"):
+            s = p.replace("seed", "")
+            if s.isdigit():
+                return s
+
+    # 2) intenta train.seed en la config
+    train_cfg = cfg.get("train", {}) if isinstance(cfg, dict) else {}
+    seed = train_cfg.get("seed", "")
+    return str(seed) if seed != "" else ""
+
+
+def infer_modality(cfg: Dict) -> str:
+    data_cfg = cfg.get("data", {}) if isinstance(cfg, dict) else {}
+    use_depth = bool(data_cfg.get("use_depth", False))
+    return "RGBD" if use_depth else "RGB"
+
+
+def infer_augment(cfg: Dict) -> str:
+    """
+    Si tienes:
+      data:
+        augmentation:
+          geometric: true/false
+          photometric: true/false
+    """
+    data_cfg = cfg.get("data", {}) if isinstance(cfg, dict) else {}
+    aug = data_cfg.get("augmentation", {}) if isinstance(data_cfg, dict) else {}
+    if not isinstance(aug, dict):
+        return ""
+    g = bool(aug.get("geometric", False))
+    p = bool(aug.get("photometric", False))
+    if g or p:
+        return f"geo={int(g)}|photo={int(p)}"
+    return ""
+
+
+# -----------------------------
+# Best epoch selection
+# -----------------------------
+def select_best_row(rows: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
+    """
     Criterio:
-      1) Si existe columna val_success:
-           - Maximizar val_success
-           - Desempate: mayor val_iou, menor val_angle, menor val_loss
-      2) Si NO existe val_success:
-           - Maximizar val_iou
-           - Desempate: menor val_angle, menor val_loss
-    Solo se consideran filas con métricas finitas.
+      - Si hay val_success: maximizar val_success
+        desempate: mayor val_iou, menor val_angle, menor val_loss
+      - Si no hay val_success: maximizar val_iou
+        desempate: menor val_angle, menor val_loss
     """
     if not rows:
         return None
 
-    has_val_success = "val_success" in rows[0]
+    has_val_success = "val_success" in rows[0].keys()
 
-    valid_rows: List[Tuple[float, float, float, float, Dict]] = []
+    ranked: List[Tuple[float, float, float, float, Dict[str, str]]] = []
 
     for row in rows:
-        val_loss = parse_float(row, "val_loss")
+        val_success = parse_float(row, "val_success") if has_val_success else None
         val_iou = parse_float(row, "val_iou")
         val_angle = parse_float(row, "val_angle")
-        val_success = parse_float(row, "val_success") if has_val_success else None
+        val_loss = parse_float(row, "val_loss")
 
-        # Filtramos filas donde TODO esté roto
-        if not (is_finite(val_iou) or is_finite(val_success)):
+        # Si no hay nada útil, fuera
+        if (not is_finite(val_success)) and (not is_finite(val_iou)):
             continue
 
+        # score principal
         if has_val_success and is_finite(val_success):
-            # Usamos val_success como criterio principal
-            score_main = val_success
+            score_main = float(val_success)
         else:
-            # Fallback: val_iou como criterio principal
-            score_main = val_iou if is_finite(val_iou) else -1.0
+            score_main = float(val_iou) if is_finite(val_iou) else -1.0
 
-        # Normalizamos valores None
-        val_loss = val_loss if is_finite(val_loss) else float("inf")
-        val_iou = val_iou if is_finite(val_iou) else -1.0
-        val_angle = val_angle if is_finite(val_angle) else float("inf")
+        # normaliza desempates
+        iou = float(val_iou) if is_finite(val_iou) else -1.0
+        ang = float(val_angle) if is_finite(val_angle) else float("inf")
+        loss = float(val_loss) if is_finite(val_loss) else float("inf")
 
-        valid_rows.append((score_main, val_iou, -val_angle, -val_loss, row))
+        # Queremos:
+        #  - score_main DESC
+        #  - iou DESC
+        #  - ang ASC
+        #  - loss ASC
+        ranked.append((score_main, iou, -ang, -loss, row))
 
-    if not valid_rows:
+    if not ranked:
         return None
 
-    # Ordenamos por:
-    #  - score_main (descendente)
-    #  - val_iou (descendente)
-    #  - -val_angle (descendente => ángulo pequeño)
-    #  - -val_loss (descendente => loss pequeña)
-    valid_rows.sort(key=lambda x: (x[0], x[1], x[2], x[3]), reverse=True)
-
-    # Devolvemos la mejor fila
-    return valid_rows[0][4]
+    ranked.sort(key=lambda x: (x[0], x[1], x[2], x[3]), reverse=True)
+    return ranked[0][4]
 
 
-def summarize_experiment(exp_dir: str) -> Optional[Dict]:
-    """
-    Dado un directorio de experimento (con metrics.csv y config.yaml),
-    devuelve un diccionario con el resumen de la mejor época.
-    """
-    exp_name = os.path.basename(exp_dir.rstrip("/"))
-    metrics_path = os.path.join(exp_dir, "metrics.csv")
-    config_path = os.path.join(exp_dir, "config.yaml")
-
+def summarize_experiment(exp_dir: Path) -> Optional[Dict[str, str]]:
+    exp_name = exp_dir.name
+    metrics_path = exp_dir / "metrics.csv"
     rows = load_metrics_csv(metrics_path)
     if not rows:
-        print(f"[WARN] {exp_name}: no se ha podido leer metrics.csv")
+        print(f"[WARN] {exp_name}: no se pudo leer metrics.csv")
         return None
 
-    best_row = select_best_row(rows)
-    if best_row is None:
+    best = select_best_row(rows)
+    if best is None:
         print(f"[WARN] {exp_name}: no hay filas válidas en metrics.csv")
         return None
 
-    cfg = load_config(config_path)
+    cfg = load_config_from_exp(exp_dir)
 
-    model_name = cfg.get("model", {}).get("name", "")
-    modality = cfg.get("data", {}).get("modality", "")
-    seed = infer_seed_from_name(exp_name)
+    model_name = ""
+    if isinstance(cfg, dict):
+        model_name = str(cfg.get("model", {}).get("name", ""))
 
-    # Extraemos valores numéricos con cuidado
-    def get_float(row: Dict[str, str], key: str) -> str:
-        val = parse_float(row, key)
-        if val is None or not math.isfinite(val):
+    modality = infer_modality(cfg) if cfg else ""
+    augment = infer_augment(cfg) if cfg else ""
+    seed = infer_seed(exp_name, cfg) if cfg else ""
+
+    def fmt(key: str, nd: int = 6) -> str:
+        v = parse_float(best, key)
+        if v is None or not math.isfinite(v):
             return ""
-        return f"{val:.6f}"
+        return f"{v:.{nd}f}"
 
-    epoch_str = best_row.get("epoch", "")
+    # epoch
     try:
-        best_epoch = int(epoch_str)
-    except (ValueError, TypeError):
+        best_epoch = int(best.get("epoch", ""))
+    except Exception:
         best_epoch = -1
 
-    summary = {
+    # checkpoints (si existen)
+    ckpt_best = exp_dir / "checkpoints" / "best.pth"
+    ckpt_last = exp_dir / "checkpoints" / "last.pth"
+
+    return {
         "exp_id": exp_name,
         "model": model_name,
         "modality": modality,
-        "seed": seed if seed is not None else "",
-        "best_epoch": best_epoch,
-        "val_loss": get_float(best_row, "val_loss"),
-        "val_iou": get_float(best_row, "val_iou"),
-        "val_angle": get_float(best_row, "val_angle"),
-        "val_success": get_float(best_row, "val_success")
-        if "val_success" in best_row
-        else "",
+        "augment": augment,
+        "seed": seed,
+        "best_epoch": str(best_epoch),
+        "val_success": fmt("val_success", 6),
+        "val_iou": fmt("val_iou", 6),
+        "val_angle": fmt("val_angle", 2),
+        "val_loss": fmt("val_loss", 6),
+        "ckpt_best": str(ckpt_best) if ckpt_best.exists() else "",
+        "ckpt_last": str(ckpt_last) if ckpt_last.exists() else "",
     }
 
-    return summary
 
-
-def find_experiments(root: str) -> List[str]:
-    """
-    Busca subcarpetas dentro de root que parezcan experimentos
-    (contengan metrics.csv).
-    """
-    exp_dirs: List[str] = []
-    if not os.path.exists(root):
+def find_experiments(root: Path) -> List[Path]:
+    exp_dirs: List[Path] = []
+    if not root.exists():
         return exp_dirs
-
-    for name in sorted(os.listdir(root)):
-        full = os.path.join(root, name)
-        if not os.path.isdir(full):
-            continue
-        metrics_path = os.path.join(full, "metrics.csv")
-        if os.path.exists(metrics_path):
-            exp_dirs.append(full)
-
+    for d in sorted(root.iterdir()):
+        if d.is_dir() and (d / "metrics.csv").exists():
+            exp_dirs.append(d)
     return exp_dirs
 
 
-def write_summary_csv(summaries: List[Dict], out_path: str) -> None:
-    """
-    Escribe la lista de resúmenes en un CSV.
-    """
-    if not summaries:
-        print("[WARN] No hay resúmenes para escribir en el CSV.")
+def write_summary_csv(rows: List[Dict[str, str]], out_path: Path) -> None:
+    if not rows:
+        print("[WARN] No hay resúmenes para escribir.")
         return
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     fieldnames = [
         "exp_id",
         "model",
         "modality",
+        "augment",
         "seed",
         "best_epoch",
-        "val_loss",
+        "val_success",
         "val_iou",
         "val_angle",
-        "val_success",
+        "val_loss",
+        "ckpt_best",
+        "ckpt_last",
     ]
 
-    with open(out_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in summaries:
-            writer.writerow(row)
+    with out_path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        for r in rows:
+            w.writerow(r)
 
     print(f"[OK] Resumen escrito en: {out_path}")
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Selecciona la mejor época de cada experimento y genera un resumen CSV."
-    )
-    parser.add_argument(
-        "--root",
-        type=str,
-        default="experiments",
-        help="Carpeta raíz donde están las carpetas de experimentos.",
-    )
-    parser.add_argument(
-        "--exp",
-        type=str,
-        default="",
-        help="Ruta a un experimento concreto (opcional). Si se indica, solo resume ese.",
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="experiments/summary_base.csv",
-        help="Ruta del CSV de salida cuando se procesan varios experimentos.",
-    )
-
-    args = parser.parse_args()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", type=str, default="experiments", help="Carpeta raíz de experimentos")
+    ap.add_argument("--exp", type=str, default="", help="Ruta a un experimento concreto (opcional)")
+    ap.add_argument("--output", type=str, default="experiments/summary_base.csv", help="CSV de salida")
+    args = ap.parse_args()
 
     if args.exp:
-        # Solo un experimento
-        exp_dir = args.exp
-        if not os.path.isdir(exp_dir):
+        exp_dir = Path(args.exp)
+        if not exp_dir.is_dir():
             print(f"[ERROR] {exp_dir} no es un directorio válido.")
             return
-        summary = summarize_experiment(exp_dir)
-        if summary is None:
-            print("[ERROR] No se ha podido generar el resumen.")
+        s = summarize_experiment(exp_dir)
+        if not s:
+            print("[ERROR] No se pudo resumir el experimento.")
             return
-
         print("\nResumen del experimento:")
-        for k, v in summary.items():
+        for k, v in s.items():
             print(f"  {k}: {v}")
         return
 
-    # Varios experimentos en root
-    exp_dirs = find_experiments(args.root)
-    if not exp_dirs:
-        print(f"[ERROR] No se han encontrado experimentos en {args.root}")
+    root = Path(args.root)
+    exps = find_experiments(root)
+    if not exps:
+        print(f"[ERROR] No se encontraron experimentos en {root}")
         return
 
-    print(f"[INFO] Encontrados {len(exp_dirs)} experimentos en {args.root}")
-    summaries: List[Dict] = []
-
-    for exp_dir in exp_dirs:
-        summary = summarize_experiment(exp_dir)
-        if summary is not None:
-            summaries.append(summary)
+    print(f"[INFO] Encontrados {len(exps)} experimentos en {root}")
+    summaries: List[Dict[str, str]] = []
+    for e in exps:
+        s = summarize_experiment(e)
+        if s:
+            summaries.append(s)
 
     if not summaries:
-        print("[ERROR] No se ha podido generar ningún resumen.")
+        print("[ERROR] No se pudo generar ningún resumen.")
         return
 
-    # Escribimos CSV resumen
-    write_summary_csv(summaries, args.output)
+    out_path = Path(args.output)
+    write_summary_csv(summaries, out_path)
 
-    print("\nResumenes generados:")
+    print("\nResúmenes:")
     for s in summaries:
         print(
-            f"  - {s['exp_id']}: epoch={s['best_epoch']}, "
-            f"val_success={s['val_success']}, val_iou={s['val_iou']}, "
-            f"val_angle={s['val_angle']}"
+            f"  - {s['exp_id']}: best_epoch={s['best_epoch']}, "
+            f"val_success={s['val_success']}, val_iou={s['val_iou']}, val_angle={s['val_angle']}"
         )
 
 
