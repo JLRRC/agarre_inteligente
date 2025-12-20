@@ -1,25 +1,30 @@
-experiment_name: cornell_resnet18_baseline
+# config/cornell_resnet18.yaml
+experiment_name: CORNELL_RESNET18_BASE
 
 data:
-  root_dir: data/cornell_raw/cornell_grasp   # mismo dataset que el simple_cnn
-  batch_size: 16                              # puedes bajar a 8 si notas que va lento
-  num_workers: 4
+  dataset: cornell
+  root_dir: data/cornell_raw
   img_size: 224
-
-train:
-  num_epochs: 2            # para probar que todo funciona; luego lo subimos
-  lr: 0.0005               # un pelín más bajo para ResNet18
-  weight_decay: 0.0001
-  device: cpu              # en esta máquina seguimos con CPU
+  val_split: 0.2
+  use_depth: true
+  index_files:
+    train: reports/cornell_audit/clean_idx_train_v2.txt
+    val: reports/cornell_audit/clean_idx_val.txt
 
 model:
-  name: resnet18           # <- aquí está el cambio importante
-  pretrained: false        # true si en el futuro quieres tirar de pesos ImageNet
+  name: resnet18_grasp
+  in_channels: 4
+  pretrained: true
 
-metrics:
-  iou_thresh: 0.25
-  angle_thresh: 30.0
+train:
+  epochs: 10
+  batch_size: 32
+  lr: 0.0003
+  weight_decay: 0.0001
+  num_workers: 4
+  seed: 0
+  deterministic: true
 
 logging:
-  output_dir: experiments
+  save_dir: experiments
   save_best_by: val_success

@@ -1,13 +1,15 @@
 import argparse
 import csv
+import os
 import random
-from pathlib import Path
 import shutil
+from pathlib import Path
+from typing import Any, Tuple, Optional, List, Dict
 
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 import yaml
 
 from graspnet.datasets.cornell_dataset import CornellGraspDataset
@@ -17,74 +19,240 @@ from graspnet.utils.metrics import (
     rect_to_bbox,
     bbox_iou,
     angle_diff_deg,
-    compute_grasp_success,
 )
 
-# -------------------------------------------------------------------------
-#  Argumentos y configuración
-# -------------------------------------------------------------------------
+# =============================================================================
+# Args / Config
+# =============================================================================
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Entrenamiento en Cornell Grasping Dataset (RGB / RGB-D)"
     )
-    parser.add_argument(
-        "--config",
-        type=str,
-        required=True,
-        help="Ruta al fichero de configuración YAML",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=0,
-        help="Semilla aleatoria",
-    )
+    parser.add_argument("--config", type=str, required=True, help="Ruta al YAML de config")
+    parser.add_argument("--seed", type=int, default=0, help="Semilla aleatoria")
     return parser.parse_args()
 
 
 def load_config(path: str) -> dict:
-    """Carga un fichero YAML de configuración y lo devuelve como dict."""
     cfg_path = Path(path)
     if not cfg_path.exists():
         raise FileNotFoundError(f"No se encuentra el fichero de config: {cfg_path}")
     with cfg_path.open("r") as f:
         cfg = yaml.safe_load(f)
+    if not isinstance(cfg, dict):
+        raise ValueError(f"El YAML no parece un dict válido: {cfg_path}")
     return cfg
 
 
-def seed_everything(seed: int):
-    """Fija semillas para Python, NumPy y PyTorch para mejorar reproducibilidad."""
+# =============================================================================
+# Reproducibilidad (con manejo CuBLAS)
+# =============================================================================
+
+
+def seed_everything(seed: int, deterministic: bool = True):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    if deterministic:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        try:
+            torch.use_deterministic_algorithms(True)
+        except Exception:
+            pass
+    else:
+        # Menos estricto (más rápido)
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.benchmark = True
+        try:
+            torch.use_deterministic_algorithms(False)
+        except Exception:
+            pass
 
 
-# -------------------------------------------------------------------------
-#  Data: CornellGraspDataset + DataLoaders
-# -------------------------------------------------------------------------
+def ensure_cublas_determinism_or_disable(cfg: dict, device: torch.device) -> None:
+    """
+    Si determinismo está activado y usamos CUDA, CuBLAS necesita CUBLAS_WORKSPACE_CONFIG.
+    - Si no está, NO crasheamos: avisamos y desactivamos determinismo.
+    - Si quieres forzar error en vez de auto-desactivar, pon:
+        train:
+          deterministic_strict: true
+    """
+    train_cfg = cfg.get("train", {})
+    deterministic = bool(train_cfg.get("deterministic", True))
+    strict = bool(train_cfg.get("deterministic_strict", False))
+
+    if device.type != "cuda":
+        return
+    if not deterministic:
+        return
+
+    # PyTorch exige esto para algunas ops (CuBLAS >= 10.2)
+    env = os.environ.get("CUBLAS_WORKSPACE_CONFIG", "").strip()
+    if env in (":4096:8", ":16:8"):
+        return
+
+    msg = (
+        "[WARN] Determinismo activado pero falta CUBLAS_WORKSPACE_CONFIG.\n"
+        "       Exporta antes de ejecutar:\n"
+        "         export CUBLAS_WORKSPACE_CONFIG=:4096:8\n"
+        "       (o :16:8)\n"
+    )
+
+    if strict:
+        raise RuntimeError(msg + "       deterministic_strict=true => abortando.")
+    else:
+        print(msg + "       Continuo DESACTIVANDO determinismo para evitar crash.\n")
+        # Desactivamos determinismo para que no explote en backward
+        seed_everything(int(train_cfg.get("seed_effective", 0)), deterministic=False)
+
+
+# =============================================================================
+# Helpers
+# =============================================================================
+
+
+def _finite_rows(t: torch.Tensor) -> torch.Tensor:
+    b = t.size(0)
+    return torch.isfinite(t.view(b, -1)).all(dim=1)
+
+
+def _load_indices_strict(path: str) -> List[int]:
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"index_file no existe: {p}")
+    idx: List[int] = []
+    with p.open("r") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                idx.append(int(line))
+    if len(idx) == 0:
+        raise ValueError(f"index_file vacío: {p}")
+    return idx
+
+
+def _extract_model_output(outputs: Any) -> torch.Tensor:
+    if isinstance(outputs, torch.Tensor):
+        out = outputs
+    elif isinstance(outputs, dict):
+        for k in ("pred", "out", "outputs", "y", "logits"):
+            if k in outputs:
+                out = outputs[k]
+                break
+        else:
+            raise ValueError(f"Salida dict sin clave reconocida: {list(outputs.keys())}")
+        if not isinstance(out, torch.Tensor):
+            raise ValueError("La clave encontrada en la salida dict no contiene un Tensor.")
+    elif isinstance(outputs, (tuple, list)) and len(outputs) > 0:
+        out = outputs[0]
+        if not isinstance(out, torch.Tensor):
+            raise ValueError("La salida del modelo (tuple/list) no contiene Tensor en la posición 0.")
+    else:
+        raise ValueError(f"Tipo de salida del modelo no soportado: {type(outputs)}")
+
+    if out.ndim != 2 or out.size(-1) != 5:
+        raise ValueError(f"Salida del modelo con shape inesperada: {tuple(out.shape)} (esperado [B,5])")
+    return out
+
+
+def _get_batch_tensors(
+    batch: Any,
+    device: torch.device,
+    use_depth: bool,
+) -> Tuple[torch.Tensor, Optional[torch.Tensor], torch.Tensor]:
+    if isinstance(batch, dict):
+        if "rgb" not in batch or "grasp" not in batch:
+            raise KeyError(f"Batch dict sin 'rgb'/'grasp'. Claves: {list(batch.keys())}")
+        rgb = batch["rgb"]
+        grasp = batch["grasp"]
+        depth = batch.get("depth", None)
+    elif isinstance(batch, (tuple, list)):
+        if len(batch) == 2:
+            rgb, grasp = batch
+            depth = None
+        elif len(batch) == 3:
+            rgb, depth, grasp = batch
+        else:
+            raise ValueError(f"Batch tuple/list con longitud no soportada: {len(batch)}")
+    else:
+        raise TypeError(f"Tipo de batch no soportado: {type(batch)}")
+
+    nb = torch.cuda.is_available()
+    rgb = rgb.to(device, non_blocking=nb)
+    grasp = grasp.to(device, non_blocking=nb)
+
+    if use_depth:
+        if depth is None:
+            raise KeyError("use_depth=True pero el batch no trae 'depth'. Revisa dataset/config.")
+        depth = depth.to(device, non_blocking=nb)
+    else:
+        depth = None
+
+    return rgb, depth, grasp
+
+
+def _sanitize_params_np(p: np.ndarray) -> np.ndarray:
+    p = p.astype(np.float32, copy=True)
+    p[2] = max(float(abs(p[2])), 1e-6)  # w
+    p[3] = max(float(abs(p[3])), 1e-6)  # h
+    return p
+
+
+def _unwrap_subset(ds):
+    """Devuelve (base_ds, subset_flag)."""
+    if isinstance(ds, Subset):
+        return ds.dataset, True
+    return ds, False
+
+
+def _dataset_debug_info(name: str, ds, cfg_root: str):
+    base, is_subset = _unwrap_subset(ds)
+    print(f"[INFO] Cornell root_dir (cfg) = {cfg_root}")
+    print(f"[INFO] Dataset {name}: type={type(ds).__name__}, len={len(ds)}, subset={is_subset}")
+    # Intentamos sacar atributos típicos del dataset
+    root_dir = getattr(base, "root_dir", None)
+    split = getattr(base, "split", None)
+    use_depth = getattr(base, "use_depth", None)
+    img_size = getattr(base, "img_size", None)
+    print(
+        f"[INFO] Dataset {name}: base_type={type(base).__name__}, "
+        f"root_dir={root_dir}, split={split}, use_depth={use_depth}, img_size={img_size}"
+    )
+
+
+# =============================================================================
+# DataLoaders (Opción B PRO)
+# =============================================================================
 
 
 def make_dataloaders(cfg: dict, use_depth: bool):
-    """
-    Crea los DataLoaders de entrenamiento y validación a partir del YAML.
-
-    El CornellGraspDataset devuelve diccionarios con:
-      - "rgb": tensor [B, 3, H, W]
-      - "depth": tensor [B, 1, H, W]
-      - "grasp": tensor [B, 5] con (cx, cy, w, h, angle)
-    """
+    if "data" not in cfg:
+        raise KeyError("Falta la sección 'data' en el YAML.")
     data_cfg = cfg["data"]
-    root_dir = data_cfg["root_dir"]
-    batch_size = int(data_cfg.get("batch_size", 16))
-    num_workers = int(data_cfg.get("num_workers", 4))
+    train_cfg = cfg.get("train", {})
+
+    root_dir = str(data_cfg["root_dir"]).strip()
     img_size = int(data_cfg.get("img_size", 224))
     val_split = float(data_cfg.get("val_split", 0.2))
+
+    # batch_size/num_workers: primero train:, fallback a data:
+    batch_size = int(train_cfg.get("batch_size", data_cfg.get("batch_size", 16)))
+    num_workers = int(train_cfg.get("num_workers", data_cfg.get("num_workers", 4)))
+
+    # Comprobación de ruta (si no existe, avisamos fuerte)
+    if not Path(root_dir).exists():
+        print(f"[WARN] root_dir del YAML NO existe: {root_dir}")
+        # No abortamos aquí porque tu CornellGraspDataset puede redirigir internamente,
+        # pero lo dejamos MUY visible.
+        # Si quieres abortar: pon data.require_root_exists: true
+        if bool(data_cfg.get("require_root_exists", False)):
+            raise FileNotFoundError(f"root_dir no existe y require_root_exists=true: {root_dir}")
 
     aug_cfg = data_cfg.get("augmentation", {})
     train_aug = {
@@ -92,7 +260,7 @@ def make_dataloaders(cfg: dict, use_depth: bool):
         "photometric": bool(aug_cfg.get("photometric", False)),
     }
 
-    # Dataset de entrenamiento con augmentation
+    # 1) Datasets base
     train_dataset = CornellGraspDataset(
         root_dir=root_dir,
         split="train",
@@ -101,8 +269,6 @@ def make_dataloaders(cfg: dict, use_depth: bool):
         use_depth=use_depth,
         augmentation=train_aug,
     )
-
-    # Dataset de validación sin augmentation
     val_dataset = CornellGraspDataset(
         root_dir=root_dir,
         split="val",
@@ -112,42 +278,71 @@ def make_dataloaders(cfg: dict, use_depth: bool):
         augmentation=None,
     )
 
+    # 2) Subset PRO por índices limpios (si está configurado)
+    index_cfg = data_cfg.get("index_files", None)
+    if isinstance(index_cfg, dict):
+        train_index_file = str(index_cfg.get("train", "")).strip()
+        val_index_file = str(index_cfg.get("val", "")).strip()
+
+        if train_index_file or val_index_file:
+            print(f"[INFO] index_files.train = {train_index_file}")
+            print(f"[INFO] index_files.val   = {val_index_file}")
+
+        if train_index_file:
+            idx_train = _load_indices_strict(train_index_file)
+            old = len(train_dataset)
+            train_dataset = Subset(train_dataset, idx_train)
+            print(f"[INFO] Subset TRAIN por índices limpios: {old} -> {len(train_dataset)} (n_idx={len(idx_train)})")
+
+        if val_index_file:
+            idx_val = _load_indices_strict(val_index_file)
+            old = len(val_dataset)
+            val_dataset = Subset(val_dataset, idx_val)
+            print(f"[INFO] Subset VAL por índices limpios: {old} -> {len(val_dataset)} (n_idx={len(idx_val)})")
+
+    # 3) DataLoaders
+    pin_memory = bool(data_cfg.get("pin_memory", False)) and torch.cuda.is_available()
+    persistent_workers = bool(data_cfg.get("persistent_workers", True)) and num_workers > 0
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
     )
-
     val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
     )
+
+    # Debug: confirmar dataset real
+    _dataset_debug_info("TRAIN", train_dataset, cfg_root=root_dir)
+    _dataset_debug_info("VAL", val_dataset, cfg_root=root_dir)
 
     return train_loader, val_loader
 
 
-# -------------------------------------------------------------------------
-#  Modelo + directorios de salida
-# -------------------------------------------------------------------------
+# =============================================================================
+# Modelo + salidas
+# =============================================================================
 
 
 def make_model(cfg: dict, device: torch.device, in_channels: int) -> nn.Module:
-    """
-    Construye el modelo a partir del YAML.
-    Espera en cfg["model"]["name"] algo tipo:
-        - "simple_cnn"
-        - "resnet18"
-
-    Se pasa in_channels para soportar:
-      - 3 canales (RGB)
-      - 4 canales (RGB + Depth)
-    """
+    if "model" not in cfg:
+        raise KeyError("Falta la sección 'model' en el YAML.")
     model_cfg = cfg["model"]
-    model_name = model_cfg["name"]
+    model_name = str(model_cfg["name"]).strip()
     pretrained = bool(model_cfg.get("pretrained", False))
+
+    cfg_in = model_cfg.get("in_channels", None)
+    if cfg_in is not None and int(cfg_in) != int(in_channels):
+        print(f"[WARN] model.in_channels={cfg_in} pero data.use_depth implica in_channels={in_channels}. Usaré {in_channels}.")
 
     model = build_model(
         model_name,
@@ -159,36 +354,32 @@ def make_model(cfg: dict, device: torch.device, in_channels: int) -> nn.Module:
 
 
 def ensure_dirs(cfg: dict):
-    """
-    Crea la carpeta de experimento, la subcarpeta de checkpoints y
-    devuelve:
-      - base_dir: ruta a experiments/<experiment_name>
-      - ckpt_dir: ruta a experiments/<experiment_name>/checkpoints
-      - metrics_path: ruta al metrics.csv
-    """
+    if "logging" not in cfg:
+        raise KeyError("Falta la sección 'logging' en el YAML.")
+    if "experiment_name" not in cfg:
+        raise KeyError("Falta 'experiment_name' en el YAML.")
+
     log_cfg = cfg["logging"]
-    output_root = Path(log_cfg.get("output_dir", "experiments"))
+    output_root = Path(log_cfg.get("output_dir", log_cfg.get("base_dir", "experiments")))
     exp_name = cfg["experiment_name"]
 
-    base_dir = output_root / exp_name
-    ckpt_dir = base_dir / "checkpoints"
+    ckpt_dirname = str(log_cfg.get("ckpt_dirname", "checkpoints"))
+    metrics_filename = str(log_cfg.get("metrics_filename", "metrics.csv"))
 
+    base_dir = output_root / exp_name
+    ckpt_dir = base_dir / ckpt_dirname
     ckpt_dir.mkdir(parents=True, exist_ok=True)
-    metrics_path = base_dir / "metrics.csv"
+
+    metrics_path = base_dir / metrics_filename
     return base_dir, ckpt_dir, metrics_path
 
 
-# -------------------------------------------------------------------------
-#  Utilidades de logging: metrics.csv y checkpoints
-# -------------------------------------------------------------------------
+# =============================================================================
+# Logging
+# =============================================================================
 
 
 def append_metrics_row(metrics_path: Path, metrics_dict: dict):
-    """
-    Añade una fila al metrics.csv. Si no existe, escribe primero la cabecera.
-    Columnas esperadas (en este orden):
-        epoch, train_loss, val_loss, val_iou, val_angle, val_success
-    """
     file_exists = metrics_path.exists()
     fieldnames = ["epoch", "train_loss", "val_loss", "val_iou", "val_angle", "val_success"]
 
@@ -206,12 +397,7 @@ def save_checkpoint(
     metrics_dict: dict,
     is_best: bool,
 ):
-    """
-    Guarda checkpoints:
-      - always: last.pth
-      - si is_best: best.pth
-    """
-    epoch = metrics_dict["epoch"]
+    epoch = int(metrics_dict["epoch"])
     state = {
         "epoch": epoch,
         "model_state_dict": model.state_dict(),
@@ -219,17 +405,15 @@ def save_checkpoint(
         "metrics": metrics_dict,
     }
 
-    last_path = ckpt_dir / "last.pth"
-    torch.save(state, last_path)
-
+    torch.save(state, ckpt_dir / "last.pth")
     if is_best:
-        best_path = ckpt_dir / "best.pth"
-        torch.save(state, best_path)
+        torch.save(state, ckpt_dir / "best.pth")
 
 
-# -------------------------------------------------------------------------
-#  Bucle de entrenamiento + validación
-# ------------------------------------------------------------------------
+# =============================================================================
+# Train / Validate
+# =============================================================================
+
 
 def train_one_epoch(
     model: nn.Module,
@@ -239,71 +423,59 @@ def train_one_epoch(
     device: torch.device,
     use_depth: bool,
 ) -> float:
-    """
-    Entrena una época sobre el dataloader y devuelve la pérdida media.
-
-    El dataloader devuelve batches como diccionarios con keys:
-      - "rgb": tensor [B, 3, H, W]
-      - "depth": tensor [B, 1, H, W]
-      - "grasp": tensor [B, 5]
-
-    Si use_depth=False:
-      - Se usa solo rgb -> [B, 3, H, W]
-    Si use_depth=True:
-      - Se concatena rgb y depth -> [B, 4, H, W]
-    """
     model.train()
     running_loss = 0.0
     total_samples = 0
 
     for batch_idx, batch in enumerate(dataloader):
-        rgb = batch["rgb"].to(device)      # [B, 3, H, W]
-        depth = batch["depth"].to(device)  # [B, 1, H, W]
-        grasp = batch["grasp"].to(device)  # [B, 5]
+        rgb, depth, grasp = _get_batch_tensors(batch, device=device, use_depth=use_depth)
+        x = torch.cat([rgb, depth], dim=1) if use_depth else rgb
 
-        if use_depth:
-            x = torch.cat([rgb, depth], dim=1)  # [B, 4, H, W]
-        else:
-            x = rgb  # [B, 3, H, W]
+        # Red de seguridad: filtra por muestra si algo no-finito se cuela
+        finite = _finite_rows(x) & torch.isfinite(grasp).all(dim=1)
+        if not finite.all():
+            bad = (~finite).sum().item()
+            total = grasp.size(0)
+            print(f"[WARN] NaN/Inf en TRAIN (x/grasp): {bad}/{total} (batch {batch_idx}). Se filtran.")
+            x = x[finite]
+            grasp = grasp[finite]
+            if grasp.size(0) == 0:
+                continue
 
-        # Chequeos de sanity antes del forward
-        if torch.isnan(x).any() or torch.isinf(x).any():
-            print(f"[WARN] NaN/Inf en entrada (batch {batch_idx}), se salta el batch.")
-            continue
-        if torch.isnan(grasp).any() or torch.isinf(grasp).any():
-            print(f"[WARN] NaN/Inf en etiquetas grasp (batch {batch_idx}), se salta el batch.")
-            continue
+        optimizer.zero_grad(set_to_none=True)
 
-        optimizer.zero_grad()
-        outputs = model(x)
+        outputs_raw = model(x)
+        outputs = _extract_model_output(outputs_raw)
 
-        # Chequeo de outputs
-        if torch.isnan(outputs).any() or torch.isinf(outputs).any():
-            print(f"[WARN] NaN/Inf en outputs del modelo (batch {batch_idx}), se salta el batch.")
-            continue
+        finite_out = torch.isfinite(outputs).all(dim=1)
+        if not finite_out.all():
+            bad = (~finite_out).sum().item()
+            total = outputs.size(0)
+            print(f"[WARN] NaN/Inf en outputs TRAIN: {bad}/{total} (batch {batch_idx}). Se filtran.")
+            outputs = outputs[finite_out]
+            grasp = grasp[finite_out]
+            if grasp.size(0) == 0:
+                continue
 
         loss = criterion(outputs, grasp)
-
-        # Chequeo de la loss
-        if torch.isnan(loss) or torch.isinf(loss):
-            print(f"[WARN] NaN/Inf en loss (batch {batch_idx}), se salta el batch.")
+        if not torch.isfinite(loss).item():
+            print(f"[WARN] NaN/Inf en loss (TRAIN, batch {batch_idx}), se salta el batch.")
             continue
 
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
-        batch_size = grasp.size(0)
-        running_loss += loss.item() * batch_size
-        total_samples += batch_size
+        bs = grasp.size(0)
+        running_loss += float(loss.item()) * bs
+        total_samples += bs
 
     if total_samples == 0:
-        # Si TODOS los batches han sido inválidos, devolvemos 0.0 para no propagar NaNs
         print("[WARN] Ningún batch válido en train_one_epoch (total_samples=0). Devuelvo train_loss=0.0")
         return 0.0
 
-    mean_loss = running_loss / total_samples
-    return mean_loss
+    return running_loss / total_samples
+
 
 def validate(
     model: nn.Module,
@@ -313,14 +485,10 @@ def validate(
     cfg: dict,
     use_depth: bool,
 ):
-    """
-    Evalúa el modelo en validación y devuelve:
-      - val_loss
-      - val_iou medio
-      - val_angle medio (diferencia angular en grados)
-      - val_success (proporción de aciertos según Cornell)
-    """
     model.eval()
+
+    if "metrics" not in cfg:
+        raise KeyError("Falta la sección 'metrics' en el YAML.")
     iou_thresh = float(cfg["metrics"]["iou_thresh"])
     angle_thresh = float(cfg["metrics"]["angle_thresh"])
 
@@ -334,63 +502,65 @@ def validate(
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
-            rgb = batch["rgb"].to(device)
-            depth = batch["depth"].to(device)
-            grasp = batch["grasp"].to(device)
+            rgb, depth, grasp = _get_batch_tensors(batch, device=device, use_depth=use_depth)
+            x = torch.cat([rgb, depth], dim=1) if use_depth else rgb
 
-            if use_depth:
-                x = torch.cat([rgb, depth], dim=1)  # [B, 4, H, W]
-            else:
-                x = rgb  # [B, 3, H, W]
+            finite = _finite_rows(x) & torch.isfinite(grasp).all(dim=1)
+            if not finite.all():
+                bad = (~finite).sum().item()
+                total = grasp.size(0)
+                print(f"[WARN] NaN/Inf en VAL (x/grasp): {bad}/{total} (batch {batch_idx}). Se filtran.")
+                x = x[finite]
+                grasp = grasp[finite]
+                if grasp.size(0) == 0:
+                    continue
 
-            # Chequeos de sanity
-            if torch.isnan(x).any() or torch.isinf(x).any():
-                print(f"[WARN] NaN/Inf en entrada (VAL, batch {batch_idx}), se salta el batch.")
-                continue
-            if torch.isnan(grasp).any() or torch.isinf(grasp).any():
-                print(f"[WARN] NaN/Inf en etiquetas grasp (VAL, batch {batch_idx}), se salta el batch.")
-                continue
+            outputs_raw = model(x)
+            outputs = _extract_model_output(outputs_raw)
 
-            outputs = model(x)
-
-            if torch.isnan(outputs).any() or torch.isinf(outputs).any():
-                print(f"[WARN] NaN/Inf en outputs (VAL, batch {batch_idx}), se salta el batch.")
-                continue
+            finite_out = torch.isfinite(outputs).all(dim=1)
+            if not finite_out.all():
+                bad = (~finite_out).sum().item()
+                total = outputs.size(0)
+                print(f"[WARN] NaN/Inf en outputs VAL: {bad}/{total} (batch {batch_idx}). Se filtran.")
+                outputs = outputs[finite_out]
+                grasp = grasp[finite_out]
+                if grasp.size(0) == 0:
+                    continue
 
             loss = criterion(outputs, grasp)
-            if torch.isnan(loss) or torch.isinf(loss):
+            if not torch.isfinite(loss).item():
                 print(f"[WARN] NaN/Inf en loss (VAL, batch {batch_idx}), se salta el batch.")
                 continue
 
-            batch_size = grasp.size(0)
-            total_loss += loss.item() * batch_size
-            total_samples += batch_size
+            # ✅ bs después de filtrar
+            bs = grasp.size(0)
+            total_loss += float(loss.item()) * bs
+            total_samples += bs
 
-            # Métricas tipo Cornell
-            preds_np = outputs.cpu().numpy()
-            grasp_np = grasp.cpu().numpy()
+            preds_np = outputs.detach().cpu().numpy()
+            grasp_np = grasp.detach().cpu().numpy()
 
             for p, g in zip(preds_np, grasp_np):
-                cx_p, cy_p, w_p, h_p, ang_p = p
-                cx_g, cy_g, w_g, h_g, ang_g = g
+                p = _sanitize_params_np(p)
+                g = _sanitize_params_np(g)
 
-                rect_p = params_to_rect(cx_p, cy_p, w_p, h_p, ang_p)
-                rect_g = params_to_rect(cx_g, cy_g, w_g, h_g, ang_g)
+                rect_p = params_to_rect(*p)
+                rect_g = params_to_rect(*g)
 
                 bbox_p = rect_to_bbox(rect_p)
                 bbox_g = rect_to_bbox(rect_g)
 
                 iou = bbox_iou(bbox_p, bbox_g)
-                angle_diff = angle_diff_deg(ang_p, ang_g)
+                ang = angle_diff_deg(float(p[4]), float(g[4]))
 
-                success = compute_grasp_success(p, g, iou_thresh, angle_thresh)
-
-                # iou o angle_diff no deberían ser NaN, pero por si acaso:
-                if np.isnan(iou) or np.isnan(angle_diff):
+                if np.isnan(iou) or np.isnan(ang):
                     continue
 
-                sum_iou += iou
-                sum_angle += angle_diff
+                success = (iou >= iou_thresh) and (ang <= angle_thresh)
+
+                sum_iou += float(iou)
+                sum_angle += float(ang)
                 n_eval += 1
                 if success:
                     success_count += 1
@@ -400,49 +570,60 @@ def validate(
         return 0.0, 0.0, 0.0, 0.0
 
     mean_loss = total_loss / total_samples
-    mean_iou = sum_iou / max(n_eval, 1)
-    mean_angle = sum_angle / max(n_eval, 1)
-    val_success = success_count / max(n_eval, 1)
+    denom = max(n_eval, 1)
+    mean_iou = sum_iou / denom
+    mean_angle = sum_angle / denom
+    val_success = success_count / denom
 
     return mean_loss, mean_iou, mean_angle, val_success
 
 
-# -------------------------------------------------------------------------
-#  main()
-# -------------------------------------------------------------------------
+# =============================================================================
+# main
+# =============================================================================
 
 
 def main():
-    # 1) Argumentos cli
     args = parse_args()
-
-    # 2) Semillas
-    seed_everything(args.seed)
-
-    # 3) Config
     cfg = load_config(args.config)
 
-    # ⚠️ En el MeLE NO hay GPU NVIDIA: forzamos SIEMPRE CPU
-    #device = torch.device("GPU")
-    #print("Usando dispositivo:", device)
+    # guardo seed efectivo para logs/funciones
+    cfg.setdefault("train", {})
+    cfg["train"]["seed_effective"] = int(args.seed)
 
-    # Dispositivo: CUDA si está disponible (en el PC RTX), si no CPU
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Determinismo: por defecto True (como estabas), pero manejamos CuBLAS
+    deterministic = bool(cfg.get("train", {}).get("deterministic", True))
+    seed_everything(args.seed, deterministic=deterministic)
+
+    train_cfg = cfg.get("train", {})
+    dev_req = str(train_cfg.get("device", "auto")).lower().strip()
+
+    if dev_req == "cpu":
+        device = torch.device("cpu")
+    elif dev_req == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError("Se ha pedido device=cuda pero torch.cuda.is_available()=False")
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     print("Usando dispositivo:", device)
 
-    # 4) Config de datos: decidir si usamos profundidad
-    data_cfg = cfg["data"]
+    # Si determinismo+CUDA, CuBLAS necesita env var; si no está, auto-desactivamos (o abortamos si strict)
+    ensure_cublas_determinism_or_disable(cfg, device)
+
+    data_cfg = cfg.get("data", {})
     use_depth = bool(data_cfg.get("use_depth", False))
     in_channels = 4 if use_depth else 3
 
-    # 5) DataLoaders
     train_loader, val_loader = make_dataloaders(cfg, use_depth=use_depth)
-
-    # 6) Modelo
     model = make_model(cfg, device, in_channels=in_channels)
 
-    # 7) Loss y optimizador
-    train_cfg = cfg["train"]
+    # Obligatorios
+    for k in ("lr", "weight_decay", "num_epochs"):
+        if k not in train_cfg:
+            raise KeyError(f"En 'train' falta clave obligatoria: {k}")
+
     criterion = nn.SmoothL1Loss()
     optimizer = torch.optim.Adam(
         model.parameters(),
@@ -450,17 +631,27 @@ def main():
         weight_decay=float(train_cfg["weight_decay"]),
     )
 
-    # 8) Directorios y metrics.csv
     base_dir, ckpt_dir, metrics_path = ensure_dirs(cfg)
 
-    # Guardar copia de la config usada (para reproducibilidad del experimento)
+    # Copia de config usada
     config_path = Path(args.config)
-    shutil.copy2(config_path, base_dir / "config_used.yaml")
+    try:
+        shutil.copy2(config_path, base_dir / "config_used.yaml")
+    except Exception as e:
+        print(f"[WARN] No se pudo copiar config_used.yaml: {e}")
 
-    # 9) Bucle de entrenamiento
     num_epochs = int(train_cfg["num_epochs"])
-    log_cfg = cfg["logging"]
-    metric_name = log_cfg.get("save_best_by", "val_success")
+    log_cfg = cfg.get("logging", {})
+    metric_name = str(log_cfg.get("save_best_by", "val_success")).strip()
+
+    valid_metric_names = {"val_loss", "val_iou", "val_angle", "val_success", "train_loss"}
+    if metric_name not in valid_metric_names:
+        print(
+            f"[WARN] save_best_by='{metric_name}' no es válido. "
+            f"Usaré 'val_success'. Opciones: {sorted(valid_metric_names)}"
+        )
+        metric_name = "val_success"
+
     best_metric = None
 
     for epoch in range(1, num_epochs + 1):
@@ -480,7 +671,6 @@ def main():
             "val_success": float(val_success),
         }
 
-        # Log a consola
         print(
             f"[Epoch {epoch}/{num_epochs}] "
             f"train_loss={train_loss:.4f} | "
@@ -490,23 +680,20 @@ def main():
             f"val_success={val_success:.4f}"
         )
 
-        # Guardar en metrics.csv
         append_metrics_row(metrics_path, metrics_dict)
 
-        # Selección de mejor modelo según metric_name
         current = metrics_dict[metric_name]
         if best_metric is None:
             best_metric = current
             is_best = True
         else:
-            if metric_name == "val_loss":
+            if metric_name in ("val_loss", "val_angle"):
                 is_best = current < best_metric
             else:
                 is_best = current > best_metric
             if is_best:
                 best_metric = current
 
-        # Guardar checkpoints
         save_checkpoint(ckpt_dir, model, optimizer, metrics_dict, is_best=is_best)
 
     print(f"Entrenamiento terminado. Resultados en: {base_dir}")
