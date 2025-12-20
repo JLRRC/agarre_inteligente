@@ -587,6 +587,21 @@ def main():
     args = parse_args()
     cfg = load_config(args.config)
 
+    # ------------------------------------------------------------
+    # EXP DIR por seed (auto): EXP_NAME_seed{N}
+    # ------------------------------------------------------------
+    if "experiment_name" not in cfg or not str(cfg["experiment_name"]).strip():
+        raise KeyError("Falta 'experiment_name' en el YAML.")
+
+    base_exp_name = str(cfg["experiment_name"]).strip()
+
+    # Si ya viene con _seedX, no lo duplicamos
+    if "_seed" not in base_exp_name:
+        cfg["experiment_name"] = f"{base_exp_name}_seed{args.seed}"
+    else:
+        cfg["experiment_name"] = base_exp_name
+
+
     # guardo seed efectivo para logs/funciones
     cfg.setdefault("train", {})
     cfg["train"]["seed_effective"] = int(args.seed)

@@ -1,0 +1,29 @@
+experiment_name: EXP1_SIMPLE_RGB_seed1
+data:
+  dataset: cornell
+  root_dir: data/cornell_raw
+  img_size: 224
+  val_split: 0.2
+  use_depth: false
+  index_files:
+    train: reports/cornell_audit/clean_idx_train_v2.txt
+    val: reports/cornell_audit/clean_idx_val.txt
+model:
+  name: simple_cnn
+  pretrained: false
+train:
+  num_epochs: 10
+  batch_size: 32
+  lr: 0.0005
+  weight_decay: 0.0001
+  num_workers: 4
+  device: cuda
+  seed: 1
+logging:
+  base_dir: experiments
+  ckpt_dirname: checkpoints
+  metrics_filename: metrics.csv
+  save_best_by: val_success
+metrics:
+  iou_thresh: 0.25
+  angle_thresh: 30.0

@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
-select_best_epoch.py
+select_best_epoch.py (PRO)
 
-- Lee metrics.csv de cada experimento en experiments/
-- Selecciona la mejor época según val_success (si existe), si no por val_iou
-- Genera un summary CSV con 1 fila por experimento
+- Lee metrics.csv de cada experimento dentro de experiments/
+- Selecciona la mejor época:
+    * si hay val_success -> maximiza val_success
+      desempate: mayor val_iou, menor val_angle, menor val_loss
+    * si no hay val_success -> maximiza val_iou
+      desempate: menor val_angle, menor val_loss
+- Genera experiments/summary_base.csv (1 fila por experimento)
 
 Uso:
   python src/graspnet/metrics/select_best_epoch.py --root experiments
-  python src/graspnet/metrics/select_best_epoch.py --exp experiments/EXP1_SIMPLE_RGB
+  python src/graspnet/metrics/select_best_epoch.py --exp experiments/EXP1_SIMPLE_RGB_seed0
   python src/graspnet/metrics/select_best_epoch.py --root experiments --output experiments/summary_base.csv
 """
 
@@ -24,18 +28,16 @@ except Exception:
     yaml = None
 
 
-# -----------------------------
-# Utils
-# -----------------------------
 def is_finite(x: Optional[float]) -> bool:
     return (x is not None) and math.isfinite(x)
 
 
 def parse_float(row: Dict[str, str], key: str) -> Optional[float]:
-    if key not in row:
+    v = row.get(key, None)
+    if v is None:
         return None
     try:
-        return float(row[key])
+        return float(v)
     except Exception:
         return None
 
@@ -43,18 +45,13 @@ def parse_float(row: Dict[str, str], key: str) -> Optional[float]:
 def load_metrics_csv(metrics_path: Path) -> List[Dict[str, str]]:
     if not metrics_path.exists():
         return []
-    rows: List[Dict[str, str]] = []
     with metrics_path.open("r", newline="") as f:
-        reader = csv.DictReader(f)
-        for r in reader:
-            rows.append(r)
-    return rows
+        return list(csv.DictReader(f))
 
 
 def load_config_from_exp(exp_dir: Path) -> Dict:
     """
-    Tu entrenamiento copia la config a: experiments/<EXP>/config_used.yaml
-    Pero soportamos también nombres antiguos.
+    Entrenamiento copia a config_used.yaml (PRO). Mantenemos fallback.
     """
     if yaml is None:
         return {}
@@ -68,24 +65,22 @@ def load_config_from_exp(exp_dir: Path) -> Dict:
     for p in candidates:
         if p.exists():
             try:
-                with p.open("r") as f:
-                    cfg = yaml.safe_load(f)
-                return cfg or {}
+                return yaml.safe_load(p.read_text()) or {}
             except Exception:
                 return {}
     return {}
 
 
 def infer_seed(exp_name: str, cfg: Dict) -> str:
-    # 1) intenta "seedXX" en el nombre
+    # 1) por sufijo en nombre: *_seedN
     parts = exp_name.split("_")
     for p in parts:
         if p.startswith("seed"):
-            s = p.replace("seed", "")
+            s = p.replace("seed", "").strip()
             if s.isdigit():
                 return s
 
-    # 2) intenta train.seed en la config
+    # 2) por train.seed en YAML
     train_cfg = cfg.get("train", {}) if isinstance(cfg, dict) else {}
     seed = train_cfg.get("seed", "")
     return str(seed) if seed != "" else ""
@@ -98,13 +93,6 @@ def infer_modality(cfg: Dict) -> str:
 
 
 def infer_augment(cfg: Dict) -> str:
-    """
-    Si tienes:
-      data:
-        augmentation:
-          geometric: true/false
-          photometric: true/false
-    """
     data_cfg = cfg.get("data", {}) if isinstance(cfg, dict) else {}
     aug = data_cfg.get("augmentation", {}) if isinstance(data_cfg, dict) else {}
     if not isinstance(aug, dict):
@@ -116,22 +104,11 @@ def infer_augment(cfg: Dict) -> str:
     return ""
 
 
-# -----------------------------
-# Best epoch selection
-# -----------------------------
 def select_best_row(rows: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
-    """
-    Criterio:
-      - Si hay val_success: maximizar val_success
-        desempate: mayor val_iou, menor val_angle, menor val_loss
-      - Si no hay val_success: maximizar val_iou
-        desempate: menor val_angle, menor val_loss
-    """
     if not rows:
         return None
 
     has_val_success = "val_success" in rows[0].keys()
-
     ranked: List[Tuple[float, float, float, float, Dict[str, str]]] = []
 
     for row in rows:
@@ -140,26 +117,19 @@ def select_best_row(rows: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
         val_angle = parse_float(row, "val_angle")
         val_loss = parse_float(row, "val_loss")
 
-        # Si no hay nada útil, fuera
         if (not is_finite(val_success)) and (not is_finite(val_iou)):
             continue
 
-        # score principal
         if has_val_success and is_finite(val_success):
             score_main = float(val_success)
         else:
             score_main = float(val_iou) if is_finite(val_iou) else -1.0
 
-        # normaliza desempates
         iou = float(val_iou) if is_finite(val_iou) else -1.0
         ang = float(val_angle) if is_finite(val_angle) else float("inf")
         loss = float(val_loss) if is_finite(val_loss) else float("inf")
 
-        # Queremos:
-        #  - score_main DESC
-        #  - iou DESC
-        #  - ang ASC
-        #  - loss ASC
+        # Orden: score_main DESC, iou DESC, ang ASC, loss ASC
         ranked.append((score_main, iou, -ang, -loss, row))
 
     if not ranked:
@@ -172,6 +142,7 @@ def select_best_row(rows: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
 def summarize_experiment(exp_dir: Path) -> Optional[Dict[str, str]]:
     exp_name = exp_dir.name
     metrics_path = exp_dir / "metrics.csv"
+
     rows = load_metrics_csv(metrics_path)
     if not rows:
         print(f"[WARN] {exp_name}: no se pudo leer metrics.csv")
@@ -182,7 +153,7 @@ def summarize_experiment(exp_dir: Path) -> Optional[Dict[str, str]]:
         print(f"[WARN] {exp_name}: no hay filas válidas en metrics.csv")
         return None
 
-    cfg = load_config_from_exp(exp_dir)
+    cfg = load_config_from_exp(exp_dir) if yaml is not None else {}
 
     model_name = ""
     if isinstance(cfg, dict):
@@ -192,19 +163,18 @@ def summarize_experiment(exp_dir: Path) -> Optional[Dict[str, str]]:
     augment = infer_augment(cfg) if cfg else ""
     seed = infer_seed(exp_name, cfg) if cfg else ""
 
-    def fmt(key: str, nd: int = 6) -> str:
+    def fmt(key: str, nd: int) -> str:
         v = parse_float(best, key)
         if v is None or not math.isfinite(v):
             return ""
         return f"{v:.{nd}f}"
 
-    # epoch
     try:
         best_epoch = int(best.get("epoch", ""))
     except Exception:
         best_epoch = -1
 
-    # checkpoints (si existen)
+    # ckpt paths (respetando tu estructura)
     ckpt_best = exp_dir / "checkpoints" / "best.pth"
     ckpt_last = exp_dir / "checkpoints" / "last.pth"
 
@@ -225,9 +195,9 @@ def summarize_experiment(exp_dir: Path) -> Optional[Dict[str, str]]:
 
 
 def find_experiments(root: Path) -> List[Path]:
-    exp_dirs: List[Path] = []
     if not root.exists():
-        return exp_dirs
+        return []
+    exp_dirs: List[Path] = []
     for d in sorted(root.iterdir()):
         if d.is_dir() and (d / "metrics.csv").exists():
             exp_dirs.append(d)
@@ -267,9 +237,9 @@ def write_summary_csv(rows: List[Dict[str, str]], out_path: Path) -> None:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root", type=str, default="experiments", help="Carpeta raíz de experimentos")
-    ap.add_argument("--exp", type=str, default="", help="Ruta a un experimento concreto (opcional)")
-    ap.add_argument("--output", type=str, default="experiments/summary_base.csv", help="CSV de salida")
+    ap.add_argument("--root", type=str, default="experiments")
+    ap.add_argument("--exp", type=str, default="")
+    ap.add_argument("--output", type=str, default="experiments/summary_base.csv")
     args = ap.parse_args()
 
     if args.exp:
