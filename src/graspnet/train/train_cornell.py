@@ -339,6 +339,8 @@ def make_model(cfg: dict, device: torch.device, in_channels: int) -> nn.Module:
     model_cfg = cfg["model"]
     model_name = str(model_cfg["name"]).strip()
     pretrained = bool(model_cfg.get("pretrained", False))
+    data_cfg = cfg.get("data", {})
+    img_size = int(data_cfg.get("img_size", 224))
 
     cfg_in = model_cfg.get("in_channels", None)
     if cfg_in is not None and int(cfg_in) != int(in_channels):
@@ -348,6 +350,7 @@ def make_model(cfg: dict, device: torch.device, in_channels: int) -> nn.Module:
         model_name,
         in_channels=in_channels,
         pretrained=pretrained,
+        img_size=img_size,
     )
     model.to(device)
     return model

@@ -1,0 +1,95 @@
+repo=/home/laboratorio/TFM/agarre_ros2_ws
+remote=origin	git@github.com:JLRRC/agarre_ros2_ws.git (fetch)
+branch=PC_NVIDEA
+commit=f39ef21bd5d51a84e959a6874004b521abb59f2b
+describe=f39ef21-dirty
+
+status:
+## PC_NVIDEA...origin/PC_NVIDEA
+ M README.md
+M  models/ur5_rg2/model.sdf
+ D scripts/bridge_cameras.rendered.yaml
+M  scripts/bridge_cameras.yaml
+ M scripts/capture_lateral.py
+ D scripts/eval_last_experiment.sh
+ D scripts/patch_go_home_v1.sh
+ D scripts/patch_panel_checks_v2.sh
+MD scripts/run_experiment_rgb.sh
+MD scripts/run_experiment_rgbd.sh
+M  scripts/run_grasp_node.sh
+ M scripts/run_panel.sh
+AM scripts/table_pixel_map.json
+A  scripts/ur5_basket_pose.env
+M  scripts/ur5_close_gripper.sh
+M  scripts/ur5_go_basket_pose.sh
+M  scripts/ur5_go_home.sh
+M  scripts/ur5_go_table_pose.sh
+M  scripts/ur5_go_test_pose.sh
+M  scripts/ur5_home_pose.env
+M  scripts/ur5_open_gripper.sh
+ M scripts/ur5_quick_test.sh
+A  scripts/ur5_set_basket_pose.sh
+M  scripts/ur5_set_home_boot.sh
+A  scripts/ur5_set_table_pose.sh
+A  scripts/ur5_table_pose.env
+ M src/agarre_gazebo/CMakeLists.txt
+ M src/grasp_pose_publisher/grasp_pose_publisher/__init__.py
+ M src/grasp_pose_publisher/grasp_pose_publisher/grasp_pose_node.py
+ M src/grasp_pose_publisher/grasp_pose_publisher/grasp_pose_publisher_node.py
+ M src/grasp_pose_publisher/setup.py
+ M src/grasp_pose_publisher/test/test_flake8.py
+ M src/grasp_pose_publisher/test/test_pep257.py
+ M src/ur5_qt_panel/mini_camera_panel.py
+ M src/ur5_qt_panel/test/test_flake8.py
+MM src/ur5_qt_panel/ur5_qt_panel/main_panel.py
+ M src/ur5_tools/test/test_flake8.py
+ M src/ur5_tools/test/test_pep257.py
+ M src/ur5_tools/ur5_tools/camera_capture.py
+ M src/ur5_tools/ur5_tools/fake_cameras.py
+M  worlds/ur5_mesa_objetos_pro.sdf
+?? scripts/check_topics.sh
+?? scripts/object_positions.json
+?? scripts/run_panel_ROS2_PRO.sh
+?? scripts/scripts/
+?? scripts/start_stack.sh
+?? scripts/stop_stack.sh
+?? scripts/ur5_report_dimensions.py
+?? src/ur5_qt_panel/ur5_qt_panel/.matplotlib_cache/
+?? src/ur5_qt_panel/ur5_qt_panel/README_experimentos.md
+?? src/ur5_qt_panel/ur5_qt_panel/cameras_tab.py
+?? src/ur5_qt_panel/ur5_qt_panel/evidences_tab.py
+?? src/ur5_qt_panel/ur5_qt_panel/experiments_tab.py
+?? src/ur5_qt_panel/ur5_qt_panel/panel_config.py
+?? src/ur5_qt_panel/ur5_qt_panel/panel_utils.py
+?? src/ur5_qt_panel/ur5_qt_panel/robot_tab.py
+?? src/ur5_qt_panel/ur5_qt_panel/simulation_tab.py
+?? src/ur5_qt_panel/ur5_qt_panel/tfm_artifacts.py
+?? src/ur5_qt_panel/ur5_qt_panel/tfm_evidence_tab.py
+
+diffstat:
+ README.md                                          |   21 +
+ scripts/bridge_cameras.rendered.yaml               |  104 -
+ scripts/capture_lateral.py                         |    6 +-
+ scripts/eval_last_experiment.sh                    |   15 -
+ scripts/patch_go_home_v1.sh                        |  131 -
+ scripts/patch_panel_checks_v2.sh                   |   30 -
+ scripts/run_experiment_rgb.sh                      |   20 -
+ scripts/run_experiment_rgbd.sh                     |   17 -
+ scripts/run_panel.sh                               |   23 +-
+ scripts/table_pixel_map.json                       |   63 +-
+ scripts/ur5_quick_test.sh                          |    4 +
+ src/agarre_gazebo/CMakeLists.txt                   |   10 +-
+ .../grasp_pose_publisher/__init__.py               |    2 +-
+ .../grasp_pose_publisher/grasp_pose_node.py        |   11 +-
+ .../grasp_pose_publisher_node.py                   |    5 +-
+ src/grasp_pose_publisher/setup.py                  |    7 +-
+ src/grasp_pose_publisher/test/test_flake8.py       |   10 +-
+ src/grasp_pose_publisher/test/test_pep257.py       |    6 +-
+ src/ur5_qt_panel/mini_camera_panel.py              |    3 +
+ src/ur5_qt_panel/test/test_flake8.py               |    5 +
+ src/ur5_qt_panel/ur5_qt_panel/main_panel.py        | 4128 +++++---------------
+ src/ur5_tools/test/test_flake8.py                  |   10 +-
+ src/ur5_tools/test/test_pep257.py                  |    6 +-
+ src/ur5_tools/ur5_tools/camera_capture.py          |    6 +-
+ src/ur5_tools/ur5_tools/fake_cameras.py            |   14 +-
+ 25 files changed, 1169 insertions(+), 3488 deletions(-)

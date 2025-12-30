@@ -1,0 +1,37 @@
+[18:40:53] [TFM] Generar/actualizar TODO
+[18:40:53] [TFM] Generando fig_val_success
+[18:40:53] [TFM] $ cd '/home/laboratorio/TFM/agarre_inteligente' && python scripts/tfm/gen_fig_val_success.py --root . --out reports/tfm_evidencias/figuras/ilustracion_4_1_val_success.png
+[18:40:53] /usr/bin/bash: line 1: python: command not found
+[18:40:53] [TFM] [EXIT] rc=127
+[18:40:53] [TFM] Generando fig_val_loss
+[18:40:53] [TFM] $ cd '/home/laboratorio/TFM/agarre_inteligente' && python scripts/tfm/gen_fig_loss.py --root . --out reports/tfm_evidencias/figuras/ilustracion_4_2_val_loss.png
+[18:40:53] /usr/bin/bash: line 1: python: command not found
+[18:40:53] [TFM] [EXIT] rc=127
+[18:40:53] [TFM] Generando tabla_ab_resumen
+[18:40:53] [TFM] $ cd '/home/laboratorio/TFM/agarre_inteligente' && python scripts/tfm/gen_tabla_ab_resumen.py --root . --out_csv reports/tfm_evidencias/tablas/tabla_4_1_ab_resumen.csv --out_md reports/tfm_evidencias/tablas/tabla_4_1_ab_resumen.md
+[18:40:53] /usr/bin/bash: line 1: python: command not found
+[18:40:53] [TFM] [EXIT] rc=127
+[18:40:53] [TFM] Generando tabla_hiperparams
+[18:40:53] [TFM] $ cd '/home/laboratorio/TFM/agarre_inteligente' && python scripts/tfm/gen_tabla_hiperparams.py --root . --out_csv reports/tfm_evidencias/tablas/tabla_4_2_hiperparams.csv --out_md reports/tfm_evidencias/tablas/tabla_4_2_hiperparams.md
+[18:40:53] /usr/bin/bash: line 1: python: command not found
+[18:40:53] [TFM] [EXIT] rc=127
+[18:40:53] [TFM] Generacion terminada
+[18:41:41] [TFM] Exportado pack en /home/laboratorio/TFM/agarre_inteligente/reports/tfm_export
+[18:45:50] [TFM] Generar/actualizar TODO
+[18:45:50] [TFM] Generando fig_val_success
+[18:45:50] [TFM] $ cd '/home/laboratorio/TFM/agarre_inteligente' && python scripts/tfm/gen_fig_val_success.py --root . --out reports/tfm_evidencias/figuras/ilustracion_4_1_val_success.png
+[18:45:50] /usr/bin/bash: line 1: python: command not found
+[18:45:50] [TFM] [EXIT] rc=127
+[18:45:50] [TFM] Generando fig_val_loss
+[18:45:50] [TFM] $ cd '/home/laboratorio/TFM/agarre_inteligente' && python scripts/tfm/gen_fig_loss.py --root . --out reports/tfm_evidencias/figuras/ilustracion_4_2_val_loss.png
+[18:45:50] /usr/bin/bash: line 1: python: command not found
+[18:45:50] [TFM] [EXIT] rc=127
+[18:45:50] [TFM] Generando tabla_ab_resumen
+[18:45:50] [TFM] $ cd '/home/laboratorio/TFM/agarre_inteligente' && python scripts/tfm/gen_tabla_ab_resumen.py --root . --out_csv reports/tfm_evidencias/tablas/tabla_4_1_ab_resumen.csv --out_md reports/tfm_evidencias/tablas/tabla_4_1_ab_resumen.md
+[18:45:50] /usr/bin/bash: line 1: python: command not found
+[18:45:50] [TFM] [EXIT] rc=127
+[18:45:50] [TFM] Generando tabla_hiperparams
+[18:45:50] [TFM] $ cd '/home/laboratorio/TFM/agarre_inteligente' && python scripts/tfm/gen_tabla_hiperparams.py --root . --out_csv reports/tfm_evidencias/tablas/tabla_4_2_hiperparams.csv --out_md reports/tfm_evidencias/tablas/tabla_4_2_hiperparams.md
+[18:45:50] /usr/bin/bash: line 1: python: command not found
+[18:45:50] [TFM] [EXIT] rc=127
+[18:45:50] [TFM] Generacion terminada

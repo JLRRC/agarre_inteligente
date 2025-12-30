@@ -1,0 +1,14 @@
+# Ruta/URL: file:///home/laboratorio/TFM/agarre_inteligente/requirements.lock
+# Nombre: requirements.lock
+# Qué hace: Congela versiones clave del stack Python usado para entrenamiento.
+
+torch==2.9.1
+torchvision==0.24.1
+torchaudio==2.9.1
+opencv-python==4.12.0.88
+numpy==2.2.6
+pandas==2.3.3
+PyYAML==6.0.3
+matplotlib==3.10.8
+tqdm==4.67.1
+tabulate==0.9.0

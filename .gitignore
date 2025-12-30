@@ -39,6 +39,12 @@ experiments/**/*.log
 reports/**/*.csv
 reports/**/*.json
 
+# Permitimos las tablas/listados destinados a la memoria final
+!reports/tablas_memoria/
+!reports/tablas_memoria/*.csv
+!reports/tablas_memoria/*.md
+!reports/tablas_memoria/figures_memoria/
+
 # Pero SÍ subir los index_files PRO (reproducibilidad)
 !reports/cornell_audit/clean_idx_train.txt
 !reports/cornell_audit/clean_idx_train_v2.txt
@@ -54,3 +60,11 @@ _dump_txt_files.txt
 .DS_Store
 *.swp
 *.swo
+BORRAR/
+.venv*/
+.venv_ai/
+.matplotlib_cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.png

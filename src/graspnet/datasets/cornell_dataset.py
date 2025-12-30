@@ -147,6 +147,8 @@ class CornellGraspDataset(Dataset):
 
         # Recorremos recursivamente todos los subdirectorios
         for dirpath, dirnames, filenames in os.walk(self.root_dir):
+            dirnames.sort()
+            filenames.sort()
             # Filtramos todos los ficheros que terminen en "cpos.txt"
             cpos_files = [f for f in filenames if f.endswith("cpos.txt")]
             for cpos_name in cpos_files:

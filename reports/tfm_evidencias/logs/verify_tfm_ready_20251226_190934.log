@@ -1,0 +1,35 @@
+
+==== 1) Carpetas base ====
+🟢 Existe ROS WS: /home/laboratorio/TFM/agarre_ros2_ws
+🟢 Existe ML repo: /home/laboratorio/TFM/agarre_inteligente
+
+==== 2) Python / venv (ML) ====
+🟢 Venv detectado: /home/laboratorio/TFM/agarre_inteligente/.venv/bin/python
+Python 3.12.3
+🟢 Python ejecuta OK
+
+==== 3) Import de paquete (graspnet) ====
+🔴 Import graspnet FALLA -> necesitas instalar el paquete (pip install -e .) o corregir PYTHONPATH
+
+==== 4) Cornell PRO (dataset + index_files estrictos) ====
+🟢 Dataset existe: data/cornell_raw
+🟢 Index train OK: /home/laboratorio/TFM/agarre_inteligente/reports/cornell_audit/clean_idx_train_v2.txt
+🟢 Index val OK: /home/laboratorio/TFM/agarre_inteligente/reports/cornell_audit/clean_idx_val.txt
+
+==== 5) Artefactos de experimentos (summary/plots) ====
+🟢 summary_base.csv OK
+🟢 summary_by_seed.csv OK
+🟢 summary_base_pretty.md OK
+
+==== 6) Evidencias TFM (scripts + registry) ====
+🟢 Registry evidencias OK: /home/laboratorio/TFM/agarre_ros2_ws/reports/tfm_evidencias/tfm_evidences_registry.yaml
+🟢 scripts/tfm existe
+
+==== 7) ROS/Gazebo básico (comandos + mundo) ====
+🟢 ros2 OK
+🟢 gz OK
+🟢 Mundo PRO existe
+
+==== RESULTADO ====
+Si hay 🔴 arriba, no está listo todavía. Si solo hay 🟠, está casi listo.
+

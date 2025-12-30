@@ -1,0 +1,83 @@
+version: 1
+evidences:
+  - id: fig_val_success
+    type: figure
+    label: Ilustracion
+    number: "4.1"
+    title: Comparativa val_success (media)
+    explanation: >-
+      Comparativa media de val_success por experimento. Se obtiene de
+      experiments/summary_base.csv o de metrics.csv reales por experimento.
+    footnote: ""
+    inputs_required:
+      -
+        - experiments/summary_base.csv
+        - experiments/*/metrics.csv
+    artifact_path: reports/tfm_evidencias/figuras/ilustracion_4_1_val_success.png
+    generator:
+      - python scripts/tfm/gen_fig_val_success.py --root . --out reports/tfm_evidencias/figuras/ilustracion_4_1_val_success.png
+    checks:
+      type: figure
+  - id: fig_val_loss
+    type: figure
+    label: Ilustracion
+    number: "4.2"
+    title: Comparativa val_loss (media)
+    explanation: >-
+      Comparativa media de val_loss por experimento. Se obtiene de summary_base.csv
+      o metrics reales.
+    footnote: ""
+    inputs_required:
+      -
+        - experiments/summary_base.csv
+        - experiments/*/metrics.csv
+    artifact_path: reports/tfm_evidencias/figuras/ilustracion_4_2_val_loss.png
+    generator:
+      - python scripts/tfm/gen_fig_loss.py --root . --out reports/tfm_evidencias/figuras/ilustracion_4_2_val_loss.png
+    checks:
+      type: figure
+  - id: tabla_ab_resumen
+    type: table
+    label: Tabla
+    number: "4.1"
+    title: Resumen A/B (best epoch)
+    explanation: >-
+      Tabla resumen por experimento y seed. Se genera desde summary_base.csv o
+      metrics reales.
+    footnote: ""
+    inputs_required:
+      -
+        - experiments/summary_base.csv
+        - experiments/*/metrics.csv
+    artifact_path: reports/tfm_evidencias/tablas/tabla_4_1_ab_resumen.csv
+    generator:
+      - python scripts/tfm/gen_tabla_ab_resumen.py --root . --out_csv reports/tfm_evidencias/tablas/tabla_4_1_ab_resumen.csv --out_md reports/tfm_evidencias/tablas/tabla_4_1_ab_resumen.md
+    checks:
+      type: table
+      expected_columns:
+        - exp_id
+        - seed
+        - best_epoch
+        - val_success
+        - val_loss
+  - id: tabla_hiperparams
+    type: table
+    label: Tabla
+    number: "4.2"
+    title: Hiperparametros por experimento
+    explanation: Tabla con hiperparametros leidos de config/*.yaml.
+    footnote: ""
+    inputs_required:
+      - config/*.yaml
+    artifact_path: reports/tfm_evidencias/tablas/tabla_4_2_hiperparams.csv
+    generator:
+      - python scripts/tfm/gen_tabla_hiperparams.py --root . --out_csv reports/tfm_evidencias/tablas/tabla_4_2_hiperparams.csv --out_md reports/tfm_evidencias/tablas/tabla_4_2_hiperparams.md
+    checks:
+      type: table
+      expected_columns:
+        - exp
+        - model
+        - lr
+        - batch_size
+        - epochs
+        - use_depth

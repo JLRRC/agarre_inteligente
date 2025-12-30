@@ -1,0 +1,278 @@
+version: 1
+generated_at: '2025-12-26 17:47:23'
+experiments:
+  EXP1_SIMPLE_RGB:
+    config: config/exp1_simple_rgb.yaml
+    description: 'Experimento: EXP1_SIMPLE_RGB
+
+
+      Objetivo:
+
+      - Entrenar un modelo de agarre sobre cornell (RGB).
+
+
+      Como se ejecuta:
+
+      - ./scripts/run_one.sh config/exp1_simple_rgb.yaml 0
+
+
+      Parametros importantes:
+
+      - Modelo: simple_cnn
+
+      - Modalidad: RGB
+
+      - lr: 0.0005 | batch_size: 32 | epochs: 10 | seed: 0
+
+      - root_dir: data/cornell_raw
+
+      - index_files: train=reports/cornell_audit/clean_idx_train_v2.txt, val=reports/cornell_audit/clean_idx_val.txt
+
+      - augmentations: none
+
+      - save_best_by: val_success
+
+      - metricas: val_success, val_iou, val_angle | iou_thresh=0.25, angle_thresh=30.0
+
+
+      Reproducibilidad:
+
+      - deterministic: False
+
+      - Si se usa CUDA y deterministic=True, requiere CUBLAS_WORKSPACE_CONFIG.
+
+      - Usa subsets limpios si index_files apunta a reports/cornell_audit.
+
+
+      Salidas esperadas:
+
+      - metrics.csv (por experimento)
+
+      - checkpoints/best.pth y last.pth
+
+      - plots en experiments/plots/
+
+
+      Notas:
+
+      - El entrenamiento copia config_used.yaml dentro del experimento.'
+  EXP2_SIMPLE_RGBD:
+    config: config/exp2_simple_rgbd.yaml
+    description: 'Experimento: EXP2_SIMPLE_RGBD
+
+
+      Objetivo:
+
+      - Entrenar un modelo de agarre sobre cornell (RGBD).
+
+
+      Como se ejecuta:
+
+      - ./scripts/run_one.sh config/exp2_simple_rgbd.yaml 0
+
+
+      Parametros importantes:
+
+      - Modelo: simple_cnn
+
+      - Modalidad: RGBD
+
+      - lr: 0.001 | batch_size: 32 | epochs: 10 | seed: 0
+
+      - root_dir: data/cornell_raw
+
+      - index_files: train=reports/cornell_audit/clean_idx_train_v2.txt, val=reports/cornell_audit/clean_idx_val.txt
+
+      - augmentations: none
+
+      - save_best_by: val_success
+
+      - metricas: val_success, val_iou, val_angle | iou_thresh=0.25, angle_thresh=30.0
+
+
+      Reproducibilidad:
+
+      - deterministic: False
+
+      - Si se usa CUDA y deterministic=True, requiere CUBLAS_WORKSPACE_CONFIG.
+
+      - Usa subsets limpios si index_files apunta a reports/cornell_audit.
+
+
+      Salidas esperadas:
+
+      - metrics.csv (por experimento)
+
+      - checkpoints/best.pth y last.pth
+
+      - plots en experiments/plots/
+
+
+      Notas:
+
+      - El entrenamiento copia config_used.yaml dentro del experimento.'
+  EXP3_RESNET18_RGB_AUGMENT:
+    config: config/exp3_resnet18_rgb_augment.yaml
+    description: 'Experimento: EXP3_RESNET18_RGB_AUGMENT
+
+
+      Objetivo:
+
+      - Entrenar un modelo de agarre sobre cornell (RGB).
+
+
+      Como se ejecuta:
+
+      - ./scripts/run_one.sh config/exp3_resnet18_rgb_augment.yaml 0
+
+
+      Parametros importantes:
+
+      - Modelo: resnet18
+
+      - Modalidad: RGB
+
+      - lr: 0.0005 | batch_size: 32 | epochs: 10 | seed: 0
+
+      - root_dir: data/cornell_raw
+
+      - index_files: train=reports/cornell_audit/clean_idx_train_v2.txt, val=reports/cornell_audit/clean_idx_val.txt
+
+      - augmentations: geometric, photometric
+
+      - save_best_by: val_success
+
+      - metricas: val_success, val_iou, val_angle | iou_thresh=0.25, angle_thresh=30.0
+
+
+      Reproducibilidad:
+
+      - deterministic: False
+
+      - Si se usa CUDA y deterministic=True, requiere CUBLAS_WORKSPACE_CONFIG.
+
+      - Usa subsets limpios si index_files apunta a reports/cornell_audit.
+
+
+      Salidas esperadas:
+
+      - metrics.csv (por experimento)
+
+      - checkpoints/best.pth y last.pth
+
+      - plots en experiments/plots/
+
+
+      Notas:
+
+      - El entrenamiento copia config_used.yaml dentro del experimento.'
+  EXP3_RESNET18_RGBD:
+    config: config/exp3_resnet18_rgbd.yaml
+    description: 'Experimento: EXP3_RESNET18_RGBD
+
+
+      Objetivo:
+
+      - Entrenar un modelo de agarre sobre cornell (RGBD).
+
+
+      Como se ejecuta:
+
+      - ./scripts/run_one.sh config/exp3_resnet18_rgbd.yaml 0
+
+
+      Parametros importantes:
+
+      - Modelo: resnet18
+
+      - Modalidad: RGBD
+
+      - lr: 0.0005 | batch_size: 32 | epochs: 10 | seed: 0
+
+      - root_dir: data/cornell_raw
+
+      - index_files: train=reports/cornell_audit/clean_idx_train_v2.txt, val=reports/cornell_audit/clean_idx_val.txt
+
+      - augmentations: none
+
+      - save_best_by: val_success
+
+      - metricas: val_success, val_iou, val_angle | iou_thresh=0.25, angle_thresh=30.0
+
+
+      Reproducibilidad:
+
+      - deterministic: False
+
+      - Si se usa CUDA y deterministic=True, requiere CUBLAS_WORKSPACE_CONFIG.
+
+      - Usa subsets limpios si index_files apunta a reports/cornell_audit.
+
+
+      Salidas esperadas:
+
+      - metrics.csv (por experimento)
+
+      - checkpoints/best.pth y last.pth
+
+      - plots en experiments/plots/
+
+
+      Notas:
+
+      - El entrenamiento copia config_used.yaml dentro del experimento.'
+  EXP_RESNET18_RGB_NOAUG:
+    config: config/cornell_resnet18.yaml
+    description: 'Experimento: CORNELL_RESNET18_BASE
+
+
+      Objetivo:
+
+      - Entrenar un modelo de agarre sobre cornell (RGBD).
+
+
+      Como se ejecuta:
+
+      - ./scripts/run_one.sh config/cornell_resnet18.yaml 0
+
+
+      Parametros importantes:
+
+      - Modelo: resnet18_grasp
+
+      - Modalidad: RGBD
+
+      - lr: 0.0003 | batch_size: 32 | epochs: 10 | seed: 0
+
+      - root_dir: data/cornell_raw
+
+      - index_files: train=reports/cornell_audit/clean_idx_train_v2.txt, val=reports/cornell_audit/clean_idx_val.txt
+
+      - augmentations: none
+
+      - save_best_by: val_success
+
+      - metricas: val_success, val_iou, val_angle | iou_thresh=-, angle_thresh=-
+
+
+      Reproducibilidad:
+
+      - deterministic: True
+
+      - Si se usa CUDA y deterministic=True, requiere CUBLAS_WORKSPACE_CONFIG.
+
+      - Usa subsets limpios si index_files apunta a reports/cornell_audit.
+
+
+      Salidas esperadas:
+
+      - metrics.csv (por experimento)
+
+      - checkpoints/best.pth y last.pth
+
+      - plots en experiments/plots/
+
+
+      Notas:
+
+      - El entrenamiento copia config_used.yaml dentro del experimento.'

@@ -1,0 +1,3 @@
+source,diff_abs_percent_points,diff_rel_percent,k_requested,k_used_A,k_used_B,mean_A,mean_A_percent,mean_B,mean_B_percent,metric
+ab_exp1_vs_exp2_val_success.csv,0.0,,5,5,5,0.0,0.0,0.0,0.0,val_success
+ab_exp2_vs_exp3_val_success.csv,0.0,,5,5,5,0.0,0.0,0.0,0.0,val_success

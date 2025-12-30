@@ -1,0 +1,83 @@
+repo=/home/laboratorio/TFM/agarre_inteligente
+remote=origin	git@github.com:JLRRC/agarre_inteligente.git (fetch)
+branch=main
+commit=3463ccadd35c906c63d3d250e743bdc5ee38150f
+describe=3463cca-dirty
+
+status:
+## main...origin/main
+ M .gitignore
+ M experiments/EXP1_SIMPLE_RGB_seed0/config_used.yaml
+ M experiments/EXP1_SIMPLE_RGB_seed0/metrics.csv
+ M experiments/EXP2_SIMPLE_RGBD_seed0/metrics.csv
+ D experiments/_legacy/EXP1_SIMPLE_RGB/config_used.yaml
+ D experiments/_legacy/EXP1_SIMPLE_RGB/metrics.csv
+ D experiments/_legacy/EXP2_SIMPLE_RGBD__legacy__20251220_165340/config_used.yaml
+ D experiments/_legacy/EXP2_SIMPLE_RGBD__legacy__20251220_165340/metrics.csv
+ D experiments/_legacy/EXP3_RESNET18_RGBD__legacy__20251220_165340/config_used.yaml
+ D experiments/_legacy/EXP3_RESNET18_RGBD__legacy__20251220_165340/metrics.csv
+ D experiments/_legacy/EXP3_RESNET18_RGB_AUGMENT_noseed_legacy/config_used.yaml
+ D experiments/_legacy/EXP3_RESNET18_RGB_AUGMENT_noseed_legacy/metrics.csv
+ M experiments/plots/EXP2_SIMPLE_RGBD_seed0__loss.png
+ M experiments/plots/EXP2_SIMPLE_RGBD_seed0__val_success.png
+ M experiments/summary_base.csv
+ M experiments/summary_base_pretty.md
+ M experiments/summary_by_seed.csv
+ M experiments/summary_by_seed.md
+ M src/graspnet/datasets/cornell_dataset.py
+ M src/graspnet/models/__init__.py
+ M src/graspnet/train/train_cornell.py
+?? .png
+?? docs/
+?? experiments/BORRAR/
+?? experiments/experiments_registry.yaml
+?? experiments/figures_memoria/EXP3_RESNET18_RGB_AUGMENT_seed0__loss.png
+?? experiments/figures_memoria/EXP3_RESNET18_RGB_AUGMENT_seed0__val_success.png
+?? experiments/figures_memoria/memoria_resumen.md
+?? experiments/plots/EXP1_SIMPLE_RGB_seed0__loss.png
+?? experiments/plots/EXP1_SIMPLE_RGB_seed0__val_success.png
+?? experiments/plots/EXP1_SIMPLE_RGB_seed1__loss.png
+?? experiments/plots/EXP1_SIMPLE_RGB_seed1__val_success.png
+?? experiments/plots/EXP1_SIMPLE_RGB_seed2__loss.png
+?? experiments/plots/EXP1_SIMPLE_RGB_seed2__val_success.png
+?? pyproject.toml
+?? reports/listado_repo_agarre_inteligente.txt
+?? reports/tablas_memoria/
+?? reports/tfm_evidencias/
+?? reports/tfm_export/
+?? reports/tfm_figuras/
+?? reports/tfm_snapshot/
+?? requirements.lock
+?? scripts/analyze_experiments.py
+?? scripts/check_env.py
+?? scripts/export_evidencias.py
+?? scripts/generar_galeria_cualitativa.sh
+?? scripts/infer_grasp_rgb.py
+?? scripts/run_one.sh
+?? scripts/tfm/
+?? scripts/tfm_snapshot.sh
+?? src/agarre_inteligente.egg-info/
+
+diffstat:
+ .gitignore                                         |   6 +
+ experiments/EXP1_SIMPLE_RGB_seed0/config_used.yaml |   9 +-
+ experiments/EXP1_SIMPLE_RGB_seed0/metrics.csv      |  74 ++++++++++
+ experiments/EXP2_SIMPLE_RGBD_seed0/metrics.csv     |  30 ++++
+ .../_legacy/EXP1_SIMPLE_RGB/config_used.yaml       |  34 -----
+ experiments/_legacy/EXP1_SIMPLE_RGB/metrics.csv    |  31 -----
+ .../config_used.yaml                               |  34 -----
+ .../metrics.csv                                    | 151 ---------------------
+ .../config_used.yaml                               |  34 -----
+ .../metrics.csv                                    |  31 -----
+ .../config_used.yaml                               |  34 -----
+ .../metrics.csv                                    |  41 ------
+ experiments/plots/EXP2_SIMPLE_RGBD_seed0__loss.png | Bin 51019 -> 125039 bytes
+ .../plots/EXP2_SIMPLE_RGBD_seed0__val_success.png  | Bin 68422 -> 134115 bytes
+ experiments/summary_base.csv                       |  24 ++--
+ experiments/summary_base_pretty.md                 |  28 ++--
+ experiments/summary_by_seed.csv                    |   4 +-
+ experiments/summary_by_seed.md                     |   4 +-
+ src/graspnet/datasets/cornell_dataset.py           |   2 +
+ src/graspnet/models/__init__.py                    |   9 +-
+ src/graspnet/train/train_cornell.py                |   3 +
+ 21 files changed, 159 insertions(+), 424 deletions(-)
