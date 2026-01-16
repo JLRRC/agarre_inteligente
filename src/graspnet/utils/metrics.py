@@ -1,8 +1,15 @@
 import math
-from typing import Tuple
+from typing import Tuple, Optional
 
 import numpy as np
-import torch
+try:  # torch puede no estar disponible en el panel
+    import torch  # type: ignore
+except Exception:  # pragma: no cover
+    torch = None
+try:  # OpenCV es dependecia ya usada en el proyecto
+    import cv2  # type: ignore
+except Exception:  # pragma: no cover - fallback si no hay OpenCV
+    cv2 = None
 
 
 # ---------------------------------------------------------------------
@@ -103,13 +110,69 @@ def angle_diff_deg(a1: float, a2: float) -> float:
 
 
 # ---------------------------------------------------------------------
+#  IoU orientado (Cornell)
+# ---------------------------------------------------------------------
+def _sanitize_wh(w: float, h: float) -> Tuple[float, float]:
+    w = float(abs(w))
+    h = float(abs(h))
+    return max(w, 1e-6), max(h, 1e-6)
+
+
+def _rotated_rect_iou(
+    cx1: float,
+    cy1: float,
+    w1: float,
+    h1: float,
+    ang1: float,
+    cx2: float,
+    cy2: float,
+    w2: float,
+    h2: float,
+    ang2: float,
+) -> float:
+    """
+    IoU entre dos rectángulos ORIENTADOS definidos por (cx, cy, w, h, angle_deg).
+    Usa cv2.rotatedRectangleIntersection si OpenCV está disponible.
+    """
+    w1, h1 = _sanitize_wh(w1, h1)
+    w2, h2 = _sanitize_wh(w2, h2)
+
+    if cv2 is None:
+        rect1 = params_to_rect(cx1, cy1, w1, h1, ang1)
+        rect2 = params_to_rect(cx2, cy2, w2, h2, ang2)
+        return bbox_iou(rect_to_bbox(rect1), rect_to_bbox(rect2))
+
+    r1 = ((float(cx1), float(cy1)), (float(w1), float(h1)), float(ang1))
+    r2 = ((float(cx2), float(cy2)), (float(w2), float(h2)), float(ang2))
+    inter_type, inter_pts = cv2.rotatedRectangleIntersection(r1, r2)
+    if inter_type == cv2.INTERSECT_NONE or inter_pts is None:
+        return 0.0
+    inter_area = float(cv2.contourArea(inter_pts))
+    union = (w1 * h1) + (w2 * h2) - inter_area
+    if union <= 0.0:
+        return 0.0
+    return float(inter_area / union)
+
+
+def grasp_iou(pred_params, gt_params) -> float:
+    """
+    IoU orientado para parámetros Cornell (cx, cy, w, h, angle_deg).
+    """
+    pred = _to_numpy5(pred_params)
+    gt = _to_numpy5(gt_params)
+    cx_p, cy_p, w_p, h_p, ang_p = map(float, pred)
+    cx_g, cy_g, w_g, h_g, ang_g = map(float, gt)
+    return _rotated_rect_iou(cx_p, cy_p, w_p, h_p, ang_p, cx_g, cy_g, w_g, h_g, ang_g)
+
+
+# ---------------------------------------------------------------------
 #  Grasp success tipo Cornell
 # ---------------------------------------------------------------------
 def _to_numpy5(x) -> np.ndarray:
     """
     Convierte un tensor/lista/array de 5 elem. a np.ndarray [5].
     """
-    if isinstance(x, torch.Tensor):
+    if torch is not None and isinstance(x, torch.Tensor):
         x = x.detach().cpu().numpy()
     x = np.asarray(x, dtype=np.float32).reshape(-1)
     if x.shape[0] != 5:
@@ -137,13 +200,7 @@ def compute_grasp_success(
     cx_p, cy_p, w_p, h_p, ang_p = map(float, pred)
     cx_g, cy_g, w_g, h_g, ang_g = map(float, gt)
 
-    rect_p = params_to_rect(cx_p, cy_p, w_p, h_p, ang_p)
-    rect_g = params_to_rect(cx_g, cy_g, w_g, h_g, ang_g)
-
-    bbox_p = rect_to_bbox(rect_p)
-    bbox_g = rect_to_bbox(rect_g)
-
-    iou = bbox_iou(bbox_p, bbox_g)
+    iou = _rotated_rect_iou(cx_p, cy_p, w_p, h_p, ang_p, cx_g, cy_g, w_g, h_g, ang_g)
     a_diff = angle_diff_deg(ang_p, ang_g)
 
     return (iou >= iou_thresh) and (a_diff <= angle_thresh)

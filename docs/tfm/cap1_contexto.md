@@ -15,4 +15,4 @@ Los dos workspaces que componen el proyecto son:
 - `agarre_inteligente/`: pipeline de percepción, dataset, modelos y métricas. Aquí se ejecutan los modelos, se almacenan los experimentos (`experiments/EXP*`) y se generan las métricas que alimentan los capítulos teóricos.
 - `agarre_ros2_ws/`: ROS 2 Jazzy + Gazebo + panel Qt (en `src/ur5_qt_panel/…`) encargados de la demo. Las escenas (`worlds/`), modelos (`models/ur5_rg2/`), scripts (`scripts/`), bridges (`ros_gz_bridge`) y controladores mock (`src/ur5_bringup/config/ur5_mock_controllers.yaml`) se coordinan desde este workspace.
 
-El TFM conecta ambos mundos mediante scripts (`scripts/run_experiment_rgb*.sh` en el workspace ROS y `scripts/run_seeds.sh` en el ML) para que el panel pueda disparar entrenamientos y recoger evidencias reproducibles.
+El TFM conecta ambos mundos mediante scripts (`scripts/run_one.sh` y `scripts/run_seeds.sh` en ML) para que el panel pueda disparar entrenamientos y recoger evidencias reproducibles.

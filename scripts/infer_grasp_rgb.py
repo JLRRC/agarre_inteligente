@@ -2,11 +2,23 @@
 # Summary: Runs SimpleGraspCNN on an RGB image and writes grasp params to JSON.
 import argparse
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Optional, Tuple
 
 import cv2
 import torch
+
+def _ensure_graspnet_on_path() -> None:
+    vision_dir = os.environ.get("VISION_DIR", "~/TFM/agarre_inteligente")
+    vision_dir = os.path.expanduser(vision_dir)
+    src_dir = os.path.join(vision_dir, "src")
+    if src_dir not in sys.path:
+        sys.path.insert(0, src_dir)
+
+
+_ensure_graspnet_on_path()
 
 from graspnet.models.simple_cnn import SimpleGraspCNN
 from graspnet.models.resnet18_grasp import ResNet18Grasp

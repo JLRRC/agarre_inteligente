@@ -14,19 +14,32 @@ Uso típico:
         --output experiments/ab_exp1_vs_exp2_val_success.csv
 """
 
-from pathlib import Path
 import argparse
+from pathlib import Path
+
 import pandas as pd
 
 
-def mean_last_k_valid(exp_dir: str, metric: str, k: int):
+def _resolve_exp_dir(exp_dir: str, seed: int) -> Path:
+    p = Path(exp_dir)
+    if p.exists():
+        return p
+    if "/" not in exp_dir and "\\" not in exp_dir:
+        candidate = Path("experiments") / f"{exp_dir}_seed{seed}"
+        if candidate.exists():
+            return candidate
+    return p
+
+
+def mean_last_k_valid(exp_dir: str, metric: str, k: int, seed: int):
     """
     Lee metrics.csv de un experimento, se queda solo con las filas donde
     la métrica no es NaN, y calcula la media de las últimas k filas válidas.
 
     Devuelve (media, num_filas_usadas).
     """
-    metrics_path = Path(exp_dir) / "metrics.csv"
+    resolved = _resolve_exp_dir(exp_dir, seed)
+    metrics_path = resolved / "metrics.csv"
 
     if not metrics_path.exists():
         raise FileNotFoundError(f"No se encuentra {metrics_path}")
@@ -57,6 +70,7 @@ def main():
     parser.add_argument("--exp-b", required=True, help="Ruta carpeta experimento B (contiene metrics.csv)")
     parser.add_argument("--metric", default="val_success", help="Nombre de la métrica a comparar")
     parser.add_argument("--k", type=int, default=5, help="Número de últimas épocas válidas a promediar")
+    parser.add_argument("--seed", type=int, default=0, help="Seed a usar si exp-a/exp-b son nombres base")
     parser.add_argument("--output", required=True, help="Ruta del CSV de salida con el resumen A/B")
 
     args = parser.parse_args()
@@ -66,8 +80,8 @@ def main():
     print(f"       B = {args.exp_b}")
     print(f"       usando las últimas {args.k} épocas válidas.\n")
 
-    mean_a, k_a = mean_last_k_valid(args.exp_a, args.metric, args.k)
-    mean_b, k_b = mean_last_k_valid(args.exp_b, args.metric, args.k)
+    mean_a, k_a = mean_last_k_valid(args.exp_a, args.metric, args.k, args.seed)
+    mean_b, k_b = mean_last_k_valid(args.exp_b, args.metric, args.k, args.seed)
 
     print(f"[INFO] A: media = {mean_a:.4f} (a partir de {k_a} épocas válidas)")
     print(f"[INFO] B: media = {mean_b:.4f} (a partir de {k_b} épocas válidas)")
@@ -118,5 +132,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 

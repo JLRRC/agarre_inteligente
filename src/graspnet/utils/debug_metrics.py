@@ -1,9 +1,9 @@
 from graspnet.utils.metrics import (
-    params_to_rect,
-    rect_to_bbox,
-    bbox_iou,
     angle_diff_deg,
     compute_grasp_success,
+    grasp_iou,
+    params_to_rect,
+    rect_to_bbox,
 )
 
 
@@ -17,8 +17,7 @@ def main():
 
     bbox_p = rect_to_bbox(rect_p)
     bbox_g = rect_to_bbox(rect_g)
-
-    iou = bbox_iou(bbox_p, bbox_g)
+    iou = grasp_iou(pred, gt)
     ang = angle_diff_deg(pred[-1], gt[-1])
     success = compute_grasp_success(pred, gt)
 

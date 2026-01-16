@@ -67,6 +67,7 @@ def main():
         val_split=val_split,
         img_size=img_size,
         use_depth=use_depth,
+        include_depth=use_depth,
         augmentation=augmentation,
     )
 

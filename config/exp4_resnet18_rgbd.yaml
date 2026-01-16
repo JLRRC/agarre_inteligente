@@ -1,4 +1,5 @@
-experiment_name: EXP3_RESNET18_RGBD_seed2
+experiment_name: EXP4_RESNET18_RGBD
+
 data:
   dataset: cornell
   root_dir: data/cornell_raw
@@ -11,20 +12,23 @@ data:
   index_files:
     train: reports/cornell_audit/clean_idx_train_v2.txt
     val: reports/cornell_audit/clean_idx_val.txt
+
 model:
   name: resnet18
   pretrained: true
+
 train:
-  num_epochs: 50
+  num_epochs: 10
   batch_size: 32
   lr: 0.0005
   weight_decay: 0.0001
   num_workers: 4
-  device: cuda
-  seed: 2
+  device: "cuda"
+
 logging:
   output_dir: experiments
   save_best_by: val_success
+
 metrics:
   iou_thresh: 0.25
   angle_thresh: 30.0

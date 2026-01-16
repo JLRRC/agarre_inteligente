@@ -17,7 +17,10 @@ import sys
 import time
 from pathlib import Path
 
-import torch
+try:
+    import torch  # type: ignore
+except Exception:
+    torch = None
 
 
 ONLY_CHOICES = ("all", "tables", "figures")
@@ -84,6 +87,9 @@ def aggregate_ab_tables(root: Path, target: Path):
 
 
 def measure_latency(dst: Path):
+    if torch is None:
+        print("[LAT] PyTorch no disponible; omito medida de latencias.")
+        return
     warmup = 5
     reps = 20
     batch = 1

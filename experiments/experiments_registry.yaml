@@ -166,9 +166,9 @@ experiments:
       Notas:
 
       - El entrenamiento copia config_used.yaml dentro del experimento.'
-  EXP3_RESNET18_RGBD:
-    config: config/exp3_resnet18_rgbd.yaml
-    description: 'Experimento: EXP3_RESNET18_RGBD
+  EXP4_RESNET18_RGBD:
+    config: config/exp4_resnet18_rgbd.yaml
+    description: 'Experimento: EXP4_RESNET18_RGBD
 
 
       Objetivo:
@@ -178,7 +178,7 @@ experiments:
 
       Como se ejecuta:
 
-      - ./scripts/run_one.sh config/exp3_resnet18_rgbd.yaml 0
+      - ./scripts/run_one.sh config/exp4_resnet18_rgbd.yaml 0
 
 
       Parametros importantes:

@@ -4,8 +4,8 @@
 
 # Capítulo 3 — Pipeline de percepción
 
-1. **Datos**: `data/cornell_raw/` contiene los pares RGB / depth y box annotations originales. `src/graspnet/datasets/cornell_dataset.py` expone el loader reusable para PyTorch.
-2. **Configuraciones**: `config/*.yaml` parametriza conjuntos de entrenamientos y los nombres de experimento (por ejemplo `exp3_resnet18_rgbd.yaml`). Cada archivo define:
+1. **Datos**: `data/cornell_raw/` contiene los pares RGB/depth y box annotations originales. `src/graspnet/datasets/cornell_dataset.py` expone el loader reusable para PyTorch.
+2. **Configuraciones**: `config/*.yaml` parametriza conjuntos de entrenamientos y los nombres de experimento (por ejemplo `exp4_resnet18_rgbd.yaml`). Cada archivo define:
    - dataset (RGB/RGBD, padding, augmentaciones).
    - modelo (`model.name`) y tamaño.
    - entrenamiento (seed, epochs, lr_scheduler).
@@ -16,7 +16,7 @@
 5. **Outputs reproducibles**:
    ```text
    experiments/
-   ├── EXP3_RESNET18_RGBD_seed0/
+   ├── EXP4_RESNET18_RGBD_seed0/
    │   ├── checkpoints/
    │   └── metrics.csv
    ├── summary_base.csv
@@ -32,9 +32,7 @@ Para rehacer el pipeline completo:
 ```bash
 cd ~/TFM/agarre_inteligente
 source .venv/bin/activate
-./scripts/run_seeds.sh config/exp3_resnet18_rgbd.yaml 0 1 2
+./scripts/run_seeds.sh config/exp4_resnet18_rgbd.yaml 0 1 2
 python scripts/analyze_experiments.py
 python scripts/export_evidencias.py
 ```
-
-El script `scripts/check_env.py` comprueba que todas las dependencias (torch, torchvision, pandas, cv2, matplotlib) estén accesibles antes de entrenar.

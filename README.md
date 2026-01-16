@@ -27,8 +27,8 @@ agarre_inteligente/
 │   ├── cornell_simple.yaml                 # Config base SimpleGraspCNN (RGB)
 │   ├── cornell_resnet18.yaml               # Config base ResNet18Grasp (RGB)
 │   ├── exp1_simple_rgb.yaml                # EXP1: SimpleGraspCNN RGB sin augment
-│   ├── exp2_simple_rgb_augment.yaml        # EXP2: SimpleGraspCNN RGB + augment
-│   └── exp3_resnet18_rgbd.yaml             # EXP3: ResNet18Grasp RGB-D (RGB + Depth)
+│   ├── exp2_simple_rgbd.yaml               # EXP2: SimpleGraspCNN RGB-D (sin augment)
+│   └── exp4_resnet18_rgbd.yaml             # EXP4: ResNet18Grasp RGB-D (RGB + Depth)
 ├── data/                           # Datasets locales (IGNORADOS por git)
 │   ├── cornell_raw/                # Cornell original (ficheros .png/.tiff/.txt)
 │   └── cornell_processed/          # Versión re-escalada/preprocesada
@@ -36,8 +36,8 @@ agarre_inteligente/
 │   ├── cornell_simple_baseline/            # Métricas baseline SimpleGraspCNN
 │   ├── cornell_resnet18_baseline/          # Métricas baseline ResNet18Grasp
 │   ├── exp1_simple_rgb/                    # EXP1: metrics.csv + config_used.yaml
-│   ├── exp2_simple_rgb_augment/            # EXP2
-│   ├── EXP3_RESNET18_RGBD_seed0/           # EXP3: ResNet18Grasp RGB-D (RGB + Depth)
+│   ├── EXP2_SIMPLE_RGBD_seed0/             # EXP2 (ejemplo)
+│   ├── EXP4_RESNET18_RGBD_seed0/           # EXP4: ResNet18Grasp RGB-D (RGB + Depth)
 │   ├── ab_exp1_vs_exp2_val_success.csv     # Comparativa A/B (EXP1 vs EXP2)
 │   ├── ab_exp2_vs_exp3_val_success.csv     # Comparativa A/B (EXP2 vs EXP3)
 │   ├── plan_experimentos_base.md           # Plan de experimentos base
@@ -138,7 +138,7 @@ Configuración base: config/cornell_simple.yaml.
 	•	Pensado como modelo de mayor capacidad para comparar con la CNN ligera.
 
 Configuración base (RGB): config/cornell_resnet18.yaml.
-Configuración experimental RGB-D: config/exp3_resnet18_rgbd.yaml.
+Configuración experimental RGB-D: config/exp4_resnet18_rgbd.yaml.
 
 ⸻
 
@@ -189,20 +189,24 @@ YAML y una semilla aleatoria.
 python src/graspnet/train/train_cornell.py \
     --config config/exp1_simple_rgb.yaml \
     --seed 0
-8.2. EXP2 – SimpleGraspCNN, RGB con data augmentation
+8.2. EXP2 – SimpleGraspCNN, RGB-D (sin data augmentation)
 python src/graspnet/train/train_cornell.py \
-    --config config/exp2_simple_rgb_augment.yaml \
+    --config config/exp2_simple_rgbd.yaml \
     --seed 0
 8.3. EXP3 – ResNet18Grasp, RGB con data augmentation
 python src/graspnet/train/train_cornell.py \
     --config config/exp3_resnet18_rgb_augment.yaml \
+    --seed 0
+8.4. EXP4 – ResNet18Grasp, RGB-D (sin data augmentation)
+python src/graspnet/train/train_cornell.py \
+    --config config/exp4_resnet18_rgbd.yaml \
     --seed 0
 En este experimento se activa el uso de profundidad (use_depth: true en el YAML),
 fusionando el mapa de profundidad como un cuarto canal de entrada (RGB-D) y
 adaptando ResNet-18 para trabajar con 4 canales.
 
 Cada ejecución genera:
-	•	Una carpeta en experiments/<nombre_experimento>/ con:
+	•	Una carpeta en experiments/<nombre_experimento>_seedN/ con:
 	•	config_used.yaml: configuración efectivamente utilizada.
 	•	metrics.csv: tabla con métricas por época.
 	•	best.pth o similar (si se incluye guardado de checkpoints, opcional en el TFM).
@@ -215,12 +219,16 @@ En la carpeta src/graspnet/train/ se incluyen scripts auxiliares para el
 análisis de resultados:
 	•	build_summary_base.py
 Recorre las carpetas de experiments/ y construye summary_base.csv con
-un resumen de las mejores métricas por experimento.
+un resumen de las mejores métricas por experimento/seed.
+Ejemplo:
+	python src/graspnet/train/build_summary_base.py --seed 0
 	•	compare_ab.py
 Genera comparativas A/B entre dos experimentos, produciendo ficheros
 como:
 	•	experiments/ab_exp1_vs_exp2_val_success.csv
 	•	experiments/ab_exp2_vs_exp3_val_success.csv
+Ejemplo:
+	python src/graspnet/train/compare_ab.py --exp-a EXP1_SIMPLE_RGB --exp-b EXP3_RESNET18_RGB_AUGMENT --seed 0 --metric val_success --k 5 --output experiments/ab_exp1_vs_exp3_val_success.csv
 
 Estos ficheros se utilizan posteriormente en la memoria del TFM para elaborar
 tablas y gráficos de comparación entre modelos.
@@ -233,8 +241,8 @@ Para reproducir los resultados de este trabajo:
 	1.	Clonar el repositorio.
 	2.	Preparar el entorno virtual e instalar dependencias.
 	3.	Descargar Cornell y colocarlo en data/cornell_raw/.
-	4.	Ejecutar los tres experimentos base (EXP1 y EXP2 en RGB, EXP3 en RGB-D).
-	5.	Ejecutar build_summary_base.py y compare_ab.py para generar los CSV
+	4.	Ejecutar los experimentos base (EXP1 en RGB, EXP2 en RGB-D, EXP3 en RGB+augment, EXP4 en RGB-D).
+	5.	Ejecutar build_summary_base.py (con --seed) y compare_ab.py para generar los CSV
 de resumen y comparativas.
 
 Dado que el código, las configuraciones YAML y las métricas generadas se
@@ -249,8 +257,8 @@ Para reproducir los resultados de este trabajo:
 	1.	Clonar el repositorio.
 	2.	Preparar el entorno virtual e instalar dependencias.
 	3.	Descargar Cornell y colocarlo en data/cornell_raw/.
-	4.	Ejecutar los tres experimentos base (EXP1 y EXP2 en RGB, EXP3 en RGB-D).
-	5.	Ejecutar build_summary_base.py y compare_ab.py para generar los CSV
+	4.	Ejecutar los experimentos base (EXP1 en RGB, EXP2 en RGB-D, EXP3 en RGB+augment, EXP4 en RGB-D).
+	5.	Ejecutar build_summary_base.py (con --seed) y compare_ab.py para generar los CSV
 de resumen y comparativas.
 
 Dado que el código, las configuraciones YAML y las métricas generadas se

@@ -10,7 +10,7 @@ GENERATED=2025-12-26 22:27:06
 [FILE] config/exp2_simple_rgb_augment.yaml |     656B | 2025-12-20 16:23:03
 [FILE] config/exp2_simple_rgbd.yaml |     602B | 2025-12-20 16:23:03
 [FILE] config/exp3_resnet18_rgb_augment.yaml |     598B | 2025-12-20 16:23:03
-[FILE] config/exp3_resnet18_rgbd.yaml |     592B | 2025-12-20 16:23:03
+[FILE] config/exp4_resnet18_rgbd.yaml |     592B | 2025-12-20 16:23:03
 [DIR ] data
 [FILE] data/README.md |     971B | 2025-12-26 07:54:55
 [DIR ] data/cornell_raw
@@ -13401,12 +13401,12 @@ GENERATED=2025-12-26 22:27:06
 [FILE] experiments/BORRAR/_legacy/EXP2_SIMPLE_RGBD__legacy__20251220_165340/checkpoints/last.pth |  151.5MB | 2025-12-20 16:00:31
 [FILE] experiments/BORRAR/_legacy/EXP2_SIMPLE_RGBD__legacy__20251220_165340/config_used.yaml |     602B | 2025-12-20 16:23:03
 [FILE] experiments/BORRAR/_legacy/EXP2_SIMPLE_RGBD__legacy__20251220_165340/metrics.csv |   14.4KB | 2025-12-20 16:23:03
-[DIR ] experiments/BORRAR/_legacy/EXP3_RESNET18_RGBD__legacy__20251220_165340
-[DIR ] experiments/BORRAR/_legacy/EXP3_RESNET18_RGBD__legacy__20251220_165340/checkpoints
-[FILE] experiments/BORRAR/_legacy/EXP3_RESNET18_RGBD__legacy__20251220_165340/checkpoints/best.pth |  128.1MB | 2025-12-20 15:57:16
-[FILE] experiments/BORRAR/_legacy/EXP3_RESNET18_RGBD__legacy__20251220_165340/checkpoints/last.pth |  128.1MB | 2025-12-20 15:57:13
-[FILE] experiments/BORRAR/_legacy/EXP3_RESNET18_RGBD__legacy__20251220_165340/config_used.yaml |     592B | 2025-12-20 16:23:03
-[FILE] experiments/BORRAR/_legacy/EXP3_RESNET18_RGBD__legacy__20251220_165340/metrics.csv |    2.5KB | 2025-12-20 16:23:03
+[DIR ] experiments/BORRAR/_legacy/EXP4_RESNET18_RGBD__legacy__20251220_165340
+[DIR ] experiments/BORRAR/_legacy/EXP4_RESNET18_RGBD__legacy__20251220_165340/checkpoints
+[FILE] experiments/BORRAR/_legacy/EXP4_RESNET18_RGBD__legacy__20251220_165340/checkpoints/best.pth |  128.1MB | 2025-12-20 15:57:16
+[FILE] experiments/BORRAR/_legacy/EXP4_RESNET18_RGBD__legacy__20251220_165340/checkpoints/last.pth |  128.1MB | 2025-12-20 15:57:13
+[FILE] experiments/BORRAR/_legacy/EXP4_RESNET18_RGBD__legacy__20251220_165340/config_used.yaml |     592B | 2025-12-20 16:23:03
+[FILE] experiments/BORRAR/_legacy/EXP4_RESNET18_RGBD__legacy__20251220_165340/metrics.csv |    2.5KB | 2025-12-20 16:23:03
 [DIR ] experiments/BORRAR/_legacy/EXP3_RESNET18_RGB_AUGMENT_noseed_legacy
 [DIR ] experiments/BORRAR/_legacy/EXP3_RESNET18_RGB_AUGMENT_noseed_legacy/checkpoints
 [FILE] experiments/BORRAR/_legacy/EXP3_RESNET18_RGB_AUGMENT_noseed_legacy/checkpoints/best.pth |  128.0MB | 2025-12-20 16:29:28
@@ -13414,10 +13414,10 @@ GENERATED=2025-12-26 22:27:06
 [FILE] experiments/BORRAR/_legacy/EXP3_RESNET18_RGB_AUGMENT_noseed_legacy/config_used.yaml |     598B | 2025-12-20 16:23:03
 [FILE] experiments/BORRAR/_legacy/EXP3_RESNET18_RGB_AUGMENT_noseed_legacy/metrics.csv |    3.5KB | 2025-12-20 16:29:42
 [DIR ] experiments/BORRAR/_old
-[DIR ] experiments/BORRAR/_old/EXP3_RESNET18_RGBD_seed0
-[FILE] experiments/BORRAR/_old/EXP3_RESNET18_RGBD_seed0/config.yaml |     415B | 2025-12-20 00:58:17
-[FILE] experiments/BORRAR/_old/EXP3_RESNET18_RGBD_seed0/config_used.yaml |     678B | 2025-12-20 00:58:17
-[FILE] experiments/BORRAR/_old/EXP3_RESNET18_RGBD_seed0/metrics.csv |     782B | 2025-12-20 00:58:17
+[DIR ] experiments/BORRAR/_old/EXP4_RESNET18_RGBD_seed0
+[FILE] experiments/BORRAR/_old/EXP4_RESNET18_RGBD_seed0/config.yaml |     415B | 2025-12-20 00:58:17
+[FILE] experiments/BORRAR/_old/EXP4_RESNET18_RGBD_seed0/config_used.yaml |     678B | 2025-12-20 00:58:17
+[FILE] experiments/BORRAR/_old/EXP4_RESNET18_RGBD_seed0/metrics.csv |     782B | 2025-12-20 00:58:17
 [DIR ] experiments/BORRAR/_old/cornell_resnet18_baseline
 [FILE] experiments/BORRAR/_old/cornell_resnet18_baseline/metrics.csv |     188B | 2025-12-20 00:58:17
 [DIR ] experiments/BORRAR/_old/cornell_simple_baseline
@@ -13467,24 +13467,24 @@ GENERATED=2025-12-26 22:27:06
 [FILE] experiments/EXP2_SIMPLE_RGBD_seed2/checkpoints/last.pth |  151.5MB | 2025-12-20 16:45:19
 [FILE] experiments/EXP2_SIMPLE_RGBD_seed2/config_used.yaml |     602B | 2025-12-20 16:23:03
 [FILE] experiments/EXP2_SIMPLE_RGBD_seed2/metrics.csv |    1.0KB | 2025-12-20 16:45:18
-[DIR ] experiments/EXP3_RESNET18_RGBD_seed0
-[DIR ] experiments/EXP3_RESNET18_RGBD_seed0/checkpoints
-[FILE] experiments/EXP3_RESNET18_RGBD_seed0/checkpoints/best.pth |  128.1MB | 2025-12-20 16:40:41
-[FILE] experiments/EXP3_RESNET18_RGBD_seed0/checkpoints/last.pth |  128.1MB | 2025-12-20 16:40:38
-[FILE] experiments/EXP3_RESNET18_RGBD_seed0/config_used.yaml |     592B | 2025-12-20 16:23:03
-[FILE] experiments/EXP3_RESNET18_RGBD_seed0/metrics.csv |     940B | 2025-12-20 16:40:38
-[DIR ] experiments/EXP3_RESNET18_RGBD_seed1
-[DIR ] experiments/EXP3_RESNET18_RGBD_seed1/checkpoints
-[FILE] experiments/EXP3_RESNET18_RGBD_seed1/checkpoints/best.pth |  128.1MB | 2025-12-20 16:43:45
-[FILE] experiments/EXP3_RESNET18_RGBD_seed1/checkpoints/last.pth |  128.1MB | 2025-12-20 16:43:52
-[FILE] experiments/EXP3_RESNET18_RGBD_seed1/config_used.yaml |     592B | 2025-12-20 16:23:03
-[FILE] experiments/EXP3_RESNET18_RGBD_seed1/metrics.csv |     961B | 2025-12-20 16:43:52
-[DIR ] experiments/EXP3_RESNET18_RGBD_seed2
-[DIR ] experiments/EXP3_RESNET18_RGBD_seed2/checkpoints
-[FILE] experiments/EXP3_RESNET18_RGBD_seed2/checkpoints/best.pth |  128.1MB | 2025-12-20 16:46:31
-[FILE] experiments/EXP3_RESNET18_RGBD_seed2/checkpoints/last.pth |  128.1MB | 2025-12-20 16:46:45
-[FILE] experiments/EXP3_RESNET18_RGBD_seed2/config_used.yaml |     592B | 2025-12-20 16:23:03
-[FILE] experiments/EXP3_RESNET18_RGBD_seed2/metrics.csv |     934B | 2025-12-20 16:46:45
+[DIR ] experiments/EXP4_RESNET18_RGBD_seed0
+[DIR ] experiments/EXP4_RESNET18_RGBD_seed0/checkpoints
+[FILE] experiments/EXP4_RESNET18_RGBD_seed0/checkpoints/best.pth |  128.1MB | 2025-12-20 16:40:41
+[FILE] experiments/EXP4_RESNET18_RGBD_seed0/checkpoints/last.pth |  128.1MB | 2025-12-20 16:40:38
+[FILE] experiments/EXP4_RESNET18_RGBD_seed0/config_used.yaml |     592B | 2025-12-20 16:23:03
+[FILE] experiments/EXP4_RESNET18_RGBD_seed0/metrics.csv |     940B | 2025-12-20 16:40:38
+[DIR ] experiments/EXP4_RESNET18_RGBD_seed1
+[DIR ] experiments/EXP4_RESNET18_RGBD_seed1/checkpoints
+[FILE] experiments/EXP4_RESNET18_RGBD_seed1/checkpoints/best.pth |  128.1MB | 2025-12-20 16:43:45
+[FILE] experiments/EXP4_RESNET18_RGBD_seed1/checkpoints/last.pth |  128.1MB | 2025-12-20 16:43:52
+[FILE] experiments/EXP4_RESNET18_RGBD_seed1/config_used.yaml |     592B | 2025-12-20 16:23:03
+[FILE] experiments/EXP4_RESNET18_RGBD_seed1/metrics.csv |     961B | 2025-12-20 16:43:52
+[DIR ] experiments/EXP4_RESNET18_RGBD_seed2
+[DIR ] experiments/EXP4_RESNET18_RGBD_seed2/checkpoints
+[FILE] experiments/EXP4_RESNET18_RGBD_seed2/checkpoints/best.pth |  128.1MB | 2025-12-20 16:46:31
+[FILE] experiments/EXP4_RESNET18_RGBD_seed2/checkpoints/last.pth |  128.1MB | 2025-12-20 16:46:45
+[FILE] experiments/EXP4_RESNET18_RGBD_seed2/config_used.yaml |     592B | 2025-12-20 16:23:03
+[FILE] experiments/EXP4_RESNET18_RGBD_seed2/metrics.csv |     934B | 2025-12-20 16:46:45
 [DIR ] experiments/EXP3_RESNET18_RGB_AUGMENT_seed0
 [DIR ] experiments/EXP3_RESNET18_RGB_AUGMENT_seed0/checkpoints
 [FILE] experiments/EXP3_RESNET18_RGB_AUGMENT_seed0/checkpoints/best.pth |  128.0MB | 2025-12-20 16:31:42
@@ -13531,14 +13531,14 @@ GENERATED=2025-12-26 22:27:06
 [FILE] experiments/plots/EXP2_SIMPLE_RGBD_seed1__val_success.png |   69.1KB | 2025-12-26 18:42:02
 [FILE] experiments/plots/EXP2_SIMPLE_RGBD_seed2__loss.png |   52.6KB | 2025-12-26 18:42:06
 [FILE] experiments/plots/EXP2_SIMPLE_RGBD_seed2__val_success.png |   69.2KB | 2025-12-26 18:42:11
-[FILE] experiments/plots/EXP3_RESNET18_RGBD__loss.png |  112.7KB | 2025-12-20 16:46:50
-[FILE] experiments/plots/EXP3_RESNET18_RGBD__val_success.png |   67.8KB | 2025-12-20 16:46:51
-[FILE] experiments/plots/EXP3_RESNET18_RGBD_seed0__loss.png |   57.7KB | 2025-12-26 18:42:16
-[FILE] experiments/plots/EXP3_RESNET18_RGBD_seed0__val_success.png |   58.6KB | 2025-12-26 18:42:20
-[FILE] experiments/plots/EXP3_RESNET18_RGBD_seed1__loss.png |   53.8KB | 2025-12-26 18:42:26
-[FILE] experiments/plots/EXP3_RESNET18_RGBD_seed1__val_success.png |   55.9KB | 2025-12-26 18:42:29
-[FILE] experiments/plots/EXP3_RESNET18_RGBD_seed2__loss.png |   56.6KB | 2025-12-26 18:42:33
-[FILE] experiments/plots/EXP3_RESNET18_RGBD_seed2__val_success.png |   56.8KB | 2025-12-26 18:42:41
+[FILE] experiments/plots/EXP4_RESNET18_RGBD__loss.png |  112.7KB | 2025-12-20 16:46:50
+[FILE] experiments/plots/EXP4_RESNET18_RGBD__val_success.png |   67.8KB | 2025-12-20 16:46:51
+[FILE] experiments/plots/EXP4_RESNET18_RGBD_seed0__loss.png |   57.7KB | 2025-12-26 18:42:16
+[FILE] experiments/plots/EXP4_RESNET18_RGBD_seed0__val_success.png |   58.6KB | 2025-12-26 18:42:20
+[FILE] experiments/plots/EXP4_RESNET18_RGBD_seed1__loss.png |   53.8KB | 2025-12-26 18:42:26
+[FILE] experiments/plots/EXP4_RESNET18_RGBD_seed1__val_success.png |   55.9KB | 2025-12-26 18:42:29
+[FILE] experiments/plots/EXP4_RESNET18_RGBD_seed2__loss.png |   56.6KB | 2025-12-26 18:42:33
+[FILE] experiments/plots/EXP4_RESNET18_RGBD_seed2__val_success.png |   56.8KB | 2025-12-26 18:42:41
 [FILE] experiments/plots/EXP3_RESNET18_RGB_AUGMENT__loss.png |   94.5KB | 2025-12-20 16:34:58
 [FILE] experiments/plots/EXP3_RESNET18_RGB_AUGMENT__val_success.png |  101.7KB | 2025-12-20 16:34:58
 [FILE] experiments/plots/EXP3_RESNET18_RGB_AUGMENT_seed0__loss.png |   58.5KB | 2025-12-26 18:42:48

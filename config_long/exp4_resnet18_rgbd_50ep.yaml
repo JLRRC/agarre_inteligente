@@ -1,4 +1,4 @@
-experiment_name: EXP3_RESNET18_RGBD_seed0
+experiment_name: EXP4_RESNET18_RGBD
 data:
   dataset: cornell
   root_dir: data/cornell_raw
@@ -21,7 +21,6 @@ train:
   weight_decay: 0.0001
   num_workers: 4
   device: cuda
-  seed: 0
 logging:
   output_dir: experiments
   save_best_by: val_success

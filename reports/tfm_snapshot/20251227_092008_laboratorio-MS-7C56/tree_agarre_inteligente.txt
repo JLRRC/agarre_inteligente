@@ -6,7 +6,7 @@
 │   ├── exp2_simple_rgb_augment.yaml
 │   ├── exp2_simple_rgbd.yaml
 │   ├── exp3_resnet18_rgb_augment.yaml
-│   └── exp3_resnet18_rgbd.yaml
+│   └── exp4_resnet18_rgbd.yaml
 ├── data
 │   ├── cornell_raw
 │   │   ├── 01
@@ -8963,7 +8963,7 @@
 │   │   │   │   ├── checkpoints
 │   │   │   │   ├── config_used.yaml
 │   │   │   │   └── metrics.csv
-│   │   │   └── EXP3_RESNET18_RGBD__legacy__20251220_165340
+│   │   │   └── EXP4_RESNET18_RGBD__legacy__20251220_165340
 │   │   │       ├── checkpoints
 │   │   │       ├── config_used.yaml
 │   │   │       └── metrics.csv
@@ -8981,7 +8981,7 @@
 │   │       ├── exp3_resnet18_rgb_augment
 │   │       │   ├── config_used.yaml
 │   │       │   └── metrics.csv
-│   │       └── EXP3_RESNET18_RGBD_seed0
+│   │       └── EXP4_RESNET18_RGBD_seed0
 │   │           ├── config_used.yaml
 │   │           ├── config.yaml
 │   │           └── metrics.csv
@@ -9039,19 +9039,19 @@
 │   │   │   └── last.pth
 │   │   ├── config_used.yaml
 │   │   └── metrics.csv
-│   ├── EXP3_RESNET18_RGBD_seed0
+│   ├── EXP4_RESNET18_RGBD_seed0
 │   │   ├── checkpoints
 │   │   │   ├── best.pth
 │   │   │   └── last.pth
 │   │   ├── config_used.yaml
 │   │   └── metrics.csv
-│   ├── EXP3_RESNET18_RGBD_seed1
+│   ├── EXP4_RESNET18_RGBD_seed1
 │   │   ├── checkpoints
 │   │   │   ├── best.pth
 │   │   │   └── last.pth
 │   │   ├── config_used.yaml
 │   │   └── metrics.csv
-│   ├── EXP3_RESNET18_RGBD_seed2
+│   ├── EXP4_RESNET18_RGBD_seed2
 │   │   ├── checkpoints
 │   │   │   ├── best.pth
 │   │   │   └── last.pth
@@ -9091,14 +9091,14 @@
 │   │   ├── EXP3_RESNET18_RGB_AUGMENT_seed2__loss.png
 │   │   ├── EXP3_RESNET18_RGB_AUGMENT_seed2__val_success.png
 │   │   ├── EXP3_RESNET18_RGB_AUGMENT__val_success.png
-│   │   ├── EXP3_RESNET18_RGBD__loss.png
-│   │   ├── EXP3_RESNET18_RGBD_seed0__loss.png
-│   │   ├── EXP3_RESNET18_RGBD_seed0__val_success.png
-│   │   ├── EXP3_RESNET18_RGBD_seed1__loss.png
-│   │   ├── EXP3_RESNET18_RGBD_seed1__val_success.png
-│   │   ├── EXP3_RESNET18_RGBD_seed2__loss.png
-│   │   ├── EXP3_RESNET18_RGBD_seed2__val_success.png
-│   │   └── EXP3_RESNET18_RGBD__val_success.png
+│   │   ├── EXP4_RESNET18_RGBD__loss.png
+│   │   ├── EXP4_RESNET18_RGBD_seed0__loss.png
+│   │   ├── EXP4_RESNET18_RGBD_seed0__val_success.png
+│   │   ├── EXP4_RESNET18_RGBD_seed1__loss.png
+│   │   ├── EXP4_RESNET18_RGBD_seed1__val_success.png
+│   │   ├── EXP4_RESNET18_RGBD_seed2__loss.png
+│   │   ├── EXP4_RESNET18_RGBD_seed2__val_success.png
+│   │   └── EXP4_RESNET18_RGBD__val_success.png
 │   ├── summary_base.csv
 │   ├── summary_base_pretty.md
 │   ├── summary_by_seed.csv

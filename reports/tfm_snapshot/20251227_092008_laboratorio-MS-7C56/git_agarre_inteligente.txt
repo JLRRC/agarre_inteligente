@@ -14,8 +14,8 @@ status:
  D experiments/_legacy/EXP1_SIMPLE_RGB/metrics.csv
  D experiments/_legacy/EXP2_SIMPLE_RGBD__legacy__20251220_165340/config_used.yaml
  D experiments/_legacy/EXP2_SIMPLE_RGBD__legacy__20251220_165340/metrics.csv
- D experiments/_legacy/EXP3_RESNET18_RGBD__legacy__20251220_165340/config_used.yaml
- D experiments/_legacy/EXP3_RESNET18_RGBD__legacy__20251220_165340/metrics.csv
+ D experiments/_legacy/EXP4_RESNET18_RGBD__legacy__20251220_165340/config_used.yaml
+ D experiments/_legacy/EXP4_RESNET18_RGBD__legacy__20251220_165340/metrics.csv
  D experiments/_legacy/EXP3_RESNET18_RGB_AUGMENT_noseed_legacy/config_used.yaml
  D experiments/_legacy/EXP3_RESNET18_RGB_AUGMENT_noseed_legacy/metrics.csv
  M experiments/plots/EXP2_SIMPLE_RGBD_seed0__loss.png

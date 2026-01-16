@@ -63,6 +63,7 @@ class CornellGraspDataset(Dataset):
 
         # Para el pipeline: saber si se piensa usar profundidad en el modelo
         self.use_depth = use_depth
+        self._require_depth = bool(self.use_depth or self.include_depth)
 
         # Manejo de augmentation: primero `augmentation` explícito, si no, `augment`
         if augmentation is not None:
@@ -185,8 +186,10 @@ class CornellGraspDataset(Dataset):
                         depth_path = dp
                         break
 
-                # Si falta alguno de los dos, saltamos este sample
-                if rgb_path is None or depth_path is None:
+                # Si falta RGB, saltamos. Si depth es requerido y falta, saltamos.
+                if rgb_path is None:
+                    continue
+                if self._require_depth and depth_path is None:
                     continue
 
                 samples.append(
@@ -289,15 +292,28 @@ class CornellGraspDataset(Dataset):
         Carga todos los grasp rects, elige uno y lo convierte a (cx, cy, w, h, angle).
         """
         rects = self._load_grasp_rects(cpos_path)  # [N, 4, 2]
-        n_rects = rects.shape[0]
+        valid: List[np.ndarray] = []
+        valid_params: List[np.ndarray] = []
+        for rect in rects:
+            if not np.isfinite(rect).all():
+                continue
+            params = self._rect_to_params(rect)
+            if not np.isfinite(params).all():
+                continue
+            if params[2] <= 0 or params[3] <= 0:
+                continue
+            valid.append(rect)
+            valid_params.append(params)
+
+        if not valid_params:
+            raise RuntimeError(f"No hay grasp rects validos en {cpos_path}")
 
         if self.random_grasp:
-            idx = random.randint(0, n_rects - 1)
+            idx = random.randint(0, len(valid_params) - 1)
         else:
             idx = 0
 
-        rect = rects[idx]  # [4, 2]
-        params = self._rect_to_params(rect)  # (cx, cy, w, h, angle_deg)
+        params = valid_params[idx]  # (cx, cy, w, h, angle_deg)
 
         # Sanity check simple
         cx, cy, w, h, _ = params
@@ -306,6 +322,56 @@ class CornellGraspDataset(Dataset):
             pass
 
         return params
+
+    @staticmethod
+    def _normalize_angle_deg(angle_deg: float) -> float:
+        """Normaliza ángulo a rango (-180, 180]."""
+        angle = float(angle_deg) % 360.0
+        if angle > 180.0:
+            angle -= 360.0
+        return float(angle)
+
+    def _apply_augmentation(
+        self,
+        rgb: np.ndarray,
+        depth: Optional[np.ndarray],
+        cx: float,
+        cy: float,
+        angle_deg: float,
+    ) -> Tuple[np.ndarray, Optional[np.ndarray], float, float, float]:
+        """
+        Augmentación mínima:
+          - Geométrica: flips horizontal/vertical con p=0.5.
+          - Fotométrica (solo RGB): brillo/contraste suaves.
+        Se aplica tras re-escalado a img_size.
+        """
+        aug = self.augmentation or {}
+        h, w = rgb.shape[:2]
+
+        if aug.get("geometric", False):
+            if random.random() < 0.5:
+                rgb = np.flip(rgb, axis=1)
+                if depth is not None:
+                    depth = np.flip(depth, axis=1)
+                cx = (w - 1) - cx
+                angle_deg = 180.0 - angle_deg
+            if random.random() < 0.5:
+                rgb = np.flip(rgb, axis=0)
+                if depth is not None:
+                    depth = np.flip(depth, axis=0)
+                cy = (h - 1) - cy
+                angle_deg = -angle_deg
+            angle_deg = self._normalize_angle_deg(angle_deg)
+
+        if aug.get("photometric", False):
+            # Ajustes suaves en escala [0,255]
+            contrast = 0.8 + 0.4 * random.random()
+            brightness = -20.0 + 40.0 * random.random()
+            rgb = rgb.astype(np.float32)
+            rgb = (rgb - 127.5) * contrast + 127.5 + brightness
+            rgb = np.clip(rgb, 0.0, 255.0)
+
+        return rgb, depth, cx, cy, angle_deg
 
     # --------------------------------------------------------------------- #
     #   Métodos del Dataset
@@ -330,15 +396,20 @@ class CornellGraspDataset(Dataset):
         rgb = cv2.cvtColor(rgb_bgr, cv2.COLOR_BGR2RGB)
         orig_h, orig_w, _ = rgb.shape
 
-        # ---------------------------
-        # 2) Cargar depth
-        # ---------------------------
-        depth = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
-        if depth is None:
-            raise RuntimeError(f"No se pudo leer la imagen de profundidad: {depth_path}")
+        depth = None
+        depth_tensor = None
+        if self._require_depth:
+            if depth_path is None:
+                raise RuntimeError(f"Sample sin depth pero depth es requerido: {rgb_path}")
+            # ---------------------------
+            # 2) Cargar depth
+            # ---------------------------
+            depth = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+            if depth is None:
+                raise RuntimeError(f"No se pudo leer la imagen de profundidad: {depth_path}")
 
-        if depth.ndim == 3:
-            depth = cv2.cvtColor(depth, cv2.COLOR_BGR2GRAY)
+            if depth.ndim == 3:
+                depth = cv2.cvtColor(depth, cv2.COLOR_BGR2GRAY)
 
         # ---------------------------
         # 3) Cargar grasp params (en coords originales)
@@ -353,7 +424,8 @@ class CornellGraspDataset(Dataset):
             new_size = (self.img_size, self.img_size)
 
             rgb = cv2.resize(rgb, new_size, interpolation=cv2.INTER_LINEAR)
-            depth = cv2.resize(depth, new_size, interpolation=cv2.INTER_NEAREST)
+            if self._require_depth:
+                depth = cv2.resize(depth, new_size, interpolation=cv2.INTER_NEAREST)
 
             # Escalar coordenadas de grasp
             scale_x = self.img_size / float(orig_w)
@@ -363,6 +435,14 @@ class CornellGraspDataset(Dataset):
             cy *= scale_y
             w *= scale_x
             h *= scale_y
+
+        # ---------------------------
+        # 4.5) Augmentación (si aplica)
+        # ---------------------------
+        if self.augmentation and any(self.augmentation.values()):
+            rgb, depth, cx, cy, angle_deg = self._apply_augmentation(
+                rgb, depth, cx, cy, angle_deg
+            )
 
         # ---------------------------
         # 5) Normalizar y pasar a Tensor
@@ -376,23 +456,26 @@ class CornellGraspDataset(Dataset):
         if self.transform_rgb is not None:
             rgb_tensor = self.transform_rgb(rgb_tensor)
 
-        # Depth: [H, W] -> float32 [0,1] -> [1, H, W]
-        depth = depth.astype(np.float32)
-        max_depth = float(depth.max())
-        if max_depth > 0.0:
-            depth = depth / max_depth
+        if self._require_depth:
+            # Depth: [H, W] -> float32 [0,1] -> [1, H, W]
+            depth = depth.astype(np.float32)
+            max_depth = float(depth.max())
+            if max_depth > 0.0:
+                depth = depth / max_depth
 
-        depth = np.expand_dims(depth, axis=0)  # [1, H, W]
-        depth_tensor = torch.from_numpy(depth)  # [1, H, W]
-        if self.transform_depth is not None:
-            depth_tensor = self.transform_depth(depth_tensor)
+            depth = np.expand_dims(depth, axis=0)  # [1, H, W]
+            depth_tensor = torch.from_numpy(depth)  # [1, H, W]
+            if self.transform_depth is not None:
+                depth_tensor = self.transform_depth(depth_tensor)
 
         grasp_tensor = torch.tensor(
             [cx, cy, w, h, angle_deg], dtype=torch.float32
         )  # [5]
 
-        return {
+        sample_out = {
             "rgb": rgb_tensor,
-            "depth": depth_tensor,
             "grasp": grasp_tensor,
         }
+        if depth_tensor is not None:
+            sample_out["depth"] = depth_tensor
+        return sample_out

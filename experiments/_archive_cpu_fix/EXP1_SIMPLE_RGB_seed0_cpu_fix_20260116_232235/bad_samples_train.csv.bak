@@ -1,0 +1,11 @@
+split,batch,reason,idx
+train,115,nonfinite_input,65
+train,180,nonfinite_input,950
+train,45,nonfinite_input,1835
+train,225,nonfinite_input,65
+train,229,nonfinite_input,950
+train,130,nonfinite_input,1835
+train,46,nonfinite_input,65
+train,75,nonfinite_input,1835
+train,137,nonfinite_input,950
+train,60,nonfinite_input,65

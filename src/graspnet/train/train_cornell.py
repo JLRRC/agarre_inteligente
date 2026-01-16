@@ -9,16 +9,14 @@ from typing import Any, Tuple, Optional, List, Dict
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader, Subset, Dataset
 import yaml
 
 from graspnet.datasets.cornell_dataset import CornellGraspDataset
 from graspnet.models import build_model
 from graspnet.utils.metrics import (
-    params_to_rect,
-    rect_to_bbox,
-    bbox_iou,
     angle_diff_deg,
+    grasp_iou,
 )
 
 # =============================================================================
@@ -122,6 +120,28 @@ def _finite_rows(t: torch.Tensor) -> torch.Tensor:
     return torch.isfinite(t.view(b, -1)).all(dim=1)
 
 
+class _WithIndex(Dataset):
+    """Wrap dataset to add _idx for traceability in DataLoader batches."""
+
+    def __init__(self, base: Dataset) -> None:
+        self.base = base
+
+    def __len__(self) -> int:
+        return len(self.base)
+
+    def __getitem__(self, i: int):
+        sample = self.base[i]
+        if not isinstance(sample, dict):
+            return sample
+        if isinstance(self.base, Subset):
+            base_idx = int(self.base.indices[i])
+        else:
+            base_idx = int(i)
+        out = dict(sample)
+        out["_idx"] = base_idx
+        return out
+
+
 def _load_indices_strict(path: str) -> List[int]:
     p = Path(path)
     if not p.exists():
@@ -197,6 +217,14 @@ def _get_batch_tensors(
     return rgb, depth, grasp
 
 
+def _get_batch_indices(batch: Any) -> Optional[torch.Tensor]:
+    if isinstance(batch, dict) and "_idx" in batch:
+        idxs = batch["_idx"]
+        if torch.is_tensor(idxs):
+            return idxs
+    return None
+
+
 def _sanitize_params_np(p: np.ndarray) -> np.ndarray:
     p = p.astype(np.float32, copy=True)
     p[2] = max(float(abs(p[2])), 1e-6)  # w
@@ -206,8 +234,13 @@ def _sanitize_params_np(p: np.ndarray) -> np.ndarray:
 
 def _unwrap_subset(ds):
     """Devuelve (base_ds, subset_flag)."""
+    if isinstance(ds, _WithIndex):
+        ds = ds.base
     if isinstance(ds, Subset):
-        return ds.dataset, True
+        base = ds.dataset
+        if isinstance(base, _WithIndex):
+            base = base.base
+        return base, True
     return ds, False
 
 
@@ -224,6 +257,21 @@ def _dataset_debug_info(name: str, ds, cfg_root: str):
         f"[INFO] Dataset {name}: base_type={type(base).__name__}, "
         f"root_dir={root_dir}, split={split}, use_depth={use_depth}, img_size={img_size}"
     )
+
+
+def _append_bad_indices(path: Optional[Path], split: str, batch_idx: int, reason: str, idxs: Optional[torch.Tensor]):
+    if path is None or idxs is None:
+        return
+    idx_list = [int(x) for x in idxs.detach().cpu().tolist()]
+    if not idx_list:
+        return
+    file_exists = path.exists()
+    with path.open("a", newline="") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(["split", "batch", "reason", "idx"])
+        for idx in idx_list:
+            writer.writerow([split, batch_idx, reason, idx])
 
 
 # =============================================================================
@@ -267,6 +315,7 @@ def make_dataloaders(cfg: dict, use_depth: bool):
         val_split=val_split,
         img_size=img_size,
         use_depth=use_depth,
+        include_depth=use_depth,
         augmentation=train_aug,
     )
     val_dataset = CornellGraspDataset(
@@ -275,6 +324,8 @@ def make_dataloaders(cfg: dict, use_depth: bool):
         val_split=val_split,
         img_size=img_size,
         use_depth=use_depth,
+        include_depth=use_depth,
+        random_grasp=False,
         augmentation=None,
     )
 
@@ -301,6 +352,9 @@ def make_dataloaders(cfg: dict, use_depth: bool):
             print(f"[INFO] Subset VAL por índices limpios: {old} -> {len(val_dataset)} (n_idx={len(idx_val)})")
 
     # 3) DataLoaders
+    train_dataset = _WithIndex(train_dataset)
+    val_dataset = _WithIndex(val_dataset)
+
     pin_memory = bool(data_cfg.get("pin_memory", False)) and torch.cuda.is_available()
     persistent_workers = bool(data_cfg.get("persistent_workers", True)) and num_workers > 0
 
@@ -425,6 +479,7 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     device: torch.device,
     use_depth: bool,
+    bad_indices_path: Optional[Path] = None,
 ) -> float:
     model.train()
     running_loss = 0.0
@@ -432,6 +487,7 @@ def train_one_epoch(
 
     for batch_idx, batch in enumerate(dataloader):
         rgb, depth, grasp = _get_batch_tensors(batch, device=device, use_depth=use_depth)
+        idxs = _get_batch_indices(batch)
         x = torch.cat([rgb, depth], dim=1) if use_depth else rgb
 
         # Red de seguridad: filtra por muestra si algo no-finito se cuela
@@ -440,8 +496,11 @@ def train_one_epoch(
             bad = (~finite).sum().item()
             total = grasp.size(0)
             print(f"[WARN] NaN/Inf en TRAIN (x/grasp): {bad}/{total} (batch {batch_idx}). Se filtran.")
+            _append_bad_indices(bad_indices_path, "train", batch_idx, "nonfinite_input", idxs[~finite] if idxs is not None else None)
             x = x[finite]
             grasp = grasp[finite]
+            if idxs is not None:
+                idxs = idxs[finite]
             if grasp.size(0) == 0:
                 continue
 
@@ -455,14 +514,18 @@ def train_one_epoch(
             bad = (~finite_out).sum().item()
             total = outputs.size(0)
             print(f"[WARN] NaN/Inf en outputs TRAIN: {bad}/{total} (batch {batch_idx}). Se filtran.")
+            _append_bad_indices(bad_indices_path, "train", batch_idx, "nonfinite_output", idxs[~finite_out] if idxs is not None else None)
             outputs = outputs[finite_out]
             grasp = grasp[finite_out]
+            if idxs is not None:
+                idxs = idxs[finite_out]
             if grasp.size(0) == 0:
                 continue
 
         loss = criterion(outputs, grasp)
         if not torch.isfinite(loss).item():
             print(f"[WARN] NaN/Inf en loss (TRAIN, batch {batch_idx}), se salta el batch.")
+            _append_bad_indices(bad_indices_path, "train", batch_idx, "nonfinite_loss", idxs)
             continue
 
         loss.backward()
@@ -487,6 +550,7 @@ def validate(
     device: torch.device,
     cfg: dict,
     use_depth: bool,
+    bad_indices_path: Optional[Path] = None,
 ):
     model.eval()
 
@@ -506,6 +570,7 @@ def validate(
     with torch.no_grad():
         for batch_idx, batch in enumerate(dataloader):
             rgb, depth, grasp = _get_batch_tensors(batch, device=device, use_depth=use_depth)
+            idxs = _get_batch_indices(batch)
             x = torch.cat([rgb, depth], dim=1) if use_depth else rgb
 
             finite = _finite_rows(x) & torch.isfinite(grasp).all(dim=1)
@@ -513,8 +578,11 @@ def validate(
                 bad = (~finite).sum().item()
                 total = grasp.size(0)
                 print(f"[WARN] NaN/Inf en VAL (x/grasp): {bad}/{total} (batch {batch_idx}). Se filtran.")
+                _append_bad_indices(bad_indices_path, "val", batch_idx, "nonfinite_input", idxs[~finite] if idxs is not None else None)
                 x = x[finite]
                 grasp = grasp[finite]
+                if idxs is not None:
+                    idxs = idxs[finite]
                 if grasp.size(0) == 0:
                     continue
 
@@ -526,14 +594,18 @@ def validate(
                 bad = (~finite_out).sum().item()
                 total = outputs.size(0)
                 print(f"[WARN] NaN/Inf en outputs VAL: {bad}/{total} (batch {batch_idx}). Se filtran.")
+                _append_bad_indices(bad_indices_path, "val", batch_idx, "nonfinite_output", idxs[~finite_out] if idxs is not None else None)
                 outputs = outputs[finite_out]
                 grasp = grasp[finite_out]
+                if idxs is not None:
+                    idxs = idxs[finite_out]
                 if grasp.size(0) == 0:
                     continue
 
             loss = criterion(outputs, grasp)
             if not torch.isfinite(loss).item():
                 print(f"[WARN] NaN/Inf en loss (VAL, batch {batch_idx}), se salta el batch.")
+                _append_bad_indices(bad_indices_path, "val", batch_idx, "nonfinite_loss", idxs)
                 continue
 
             # ✅ bs después de filtrar
@@ -548,13 +620,7 @@ def validate(
                 p = _sanitize_params_np(p)
                 g = _sanitize_params_np(g)
 
-                rect_p = params_to_rect(*p)
-                rect_g = params_to_rect(*g)
-
-                bbox_p = rect_to_bbox(rect_p)
-                bbox_g = rect_to_bbox(rect_g)
-
-                iou = bbox_iou(bbox_p, bbox_g)
+                iou = grasp_iou(p, g)
                 ang = angle_diff_deg(float(p[4]), float(g[4]))
 
                 if np.isnan(iou) or np.isnan(ang):
@@ -650,6 +716,8 @@ def main():
     )
 
     base_dir, ckpt_dir, metrics_path = ensure_dirs(cfg)
+    bad_train_path = base_dir / "bad_samples_train.csv"
+    bad_val_path = base_dir / "bad_samples_val.csv"
 
     # Copia de config usada
     config_path = Path(args.config)
@@ -674,10 +742,22 @@ def main():
 
     for epoch in range(1, num_epochs + 1):
         train_loss = train_one_epoch(
-            model, train_loader, criterion, optimizer, device, use_depth=use_depth
+            model,
+            train_loader,
+            criterion,
+            optimizer,
+            device,
+            use_depth=use_depth,
+            bad_indices_path=bad_train_path,
         )
         val_loss, val_iou, val_angle, val_success = validate(
-            model, val_loader, criterion, device, cfg, use_depth=use_depth
+            model,
+            val_loader,
+            criterion,
+            device,
+            cfg,
+            use_depth=use_depth,
+            bad_indices_path=bad_val_path,
         )
 
         metrics_dict = {

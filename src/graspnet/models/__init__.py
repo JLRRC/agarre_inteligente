@@ -1,5 +1,4 @@
 from .simple_cnn import SimpleGraspCNN
-from .resnet18_grasp import ResNet18Grasp
 
 
 def build_model(
@@ -21,6 +20,10 @@ def build_model(
         return SimpleGraspCNN(in_channels=in_channels, img_size=img_size)
 
     elif name in ("resnet18", "resnet18grasp", "resnet18_grasp"):
+        try:
+            from .resnet18_grasp import ResNet18Grasp
+        except Exception:
+            raise RuntimeError("ResNet18Grasp no disponible (torchvision no importable).")
         return ResNet18Grasp(in_channels=in_channels, pretrained=pretrained)
 
     else:

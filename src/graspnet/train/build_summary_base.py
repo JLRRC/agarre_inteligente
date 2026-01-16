@@ -1,44 +1,56 @@
 """
 build_summary_base.py
 
-Lee los metrics.csv de los experimentos base (EXP1-EXP3),
+Lee los metrics.csv de los experimentos base (EXP1-EXP4 por seed),
 busca la época con mejor val_success (ignorando NaN)
-y genera un fichero experiments/summary_base.csv con los resultados
-listos para usar en la Tabla X del TFM.
+y genera experiments/summary_base.csv listo para la memoria.
 """
 
+import argparse
 from pathlib import Path
+
 import pandas as pd
 
 
+def _resolve_exp_dir(base_name: str, seed: int) -> Path:
+    exp_dir = Path("experiments") / f"{base_name}_seed{seed}"
+    return exp_dir
+
+
 def main():
-    # Definimos aquí los experimentos que queremos resumir.
-    # Ajusta rutas/nombres si cambian.
+    ap = argparse.ArgumentParser(description="Resumen base por seed (estructura EXP*_seedN).")
+    ap.add_argument("--seed", type=int, default=0, help="Seed a resumir (default: 0)")
+    ap.add_argument("--output", type=str, default="experiments/summary_base.csv", help="CSV de salida")
+    args = ap.parse_args()
+
     experiments = [
         {
-            "name": "EXP1",
-            "dir": "experiments/exp1_simple_rgb",
+            "name": "EXP1_SIMPLE_RGB",
             "architecture": "SimpleGraspCNN",
             "augmentation": "No",
         },
         {
-            "name": "EXP2",
-            "dir": "experiments/exp2_simple_rgb_augment",
+            "name": "EXP2_SIMPLE_RGBD",
             "architecture": "SimpleGraspCNN",
+            "augmentation": "No",
+        },
+        {
+            "name": "EXP3_RESNET18_RGB_AUGMENT",
+            "architecture": "ResNet18Grasp",
             "augmentation": "Sí",
         },
         {
-            "name": "EXP3",
-            "dir": "experiments/exp3_resnet18_rgb_augment",
+            "name": "EXP4_RESNET18_RGBD",
             "architecture": "ResNet18Grasp",
-            "augmentation": "Sí",
+            "augmentation": "No",
         },
     ]
 
     rows = []
 
     for exp in experiments:
-        metrics_path = Path(exp["dir"]) / "metrics.csv"
+        exp_dir = _resolve_exp_dir(exp["name"], args.seed)
+        metrics_path = exp_dir / "metrics.csv"
 
         if not metrics_path.exists():
             print(f"[ADVERTENCIA] No encuentro {metrics_path}, salto {exp['name']}")
@@ -74,6 +86,7 @@ def main():
         rows.append(
             {
                 "experiment": exp["name"],
+                "seed": args.seed,
                 "architecture": exp["architecture"],
                 "augmentation": exp["augmentation"],
                 "best_epoch": epoch,
@@ -91,7 +104,7 @@ def main():
 
     df_out = pd.DataFrame(rows)
 
-    out_path = Path("experiments") / "summary_base.csv"
+    out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     df_out.to_csv(out_path, index=False)
@@ -108,5 +121,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 

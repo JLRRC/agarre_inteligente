@@ -20,6 +20,7 @@ def main():
         val_split=0.2,
         img_size=224,
         use_depth=True,           # activamos carga de profundidad
+        include_depth=True,
     )
 
     loader = DataLoader(
